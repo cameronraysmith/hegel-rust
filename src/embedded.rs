@@ -44,22 +44,16 @@ use tempfile::TempDir;
 /// into the build directory's cache.
 const HEGEL_BINARY_PATH: &str = env!("HEGEL_BINARY_PATH");
 
-/// Verbosity levels for hegel output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Verbosity {
-    /// Minimal output (used by TUI).
     Quiet,
-    /// Default - standard test output.
     #[default]
     Normal,
-    /// More detailed output.
     Verbose,
-    /// Maximum verbosity + request/response logging.
     Debug,
 }
 
 impl Verbosity {
-    /// Convert to command-line argument string.
     fn as_str(&self) -> &'static str {
         match self {
             Verbosity::Quiet => "quiet",
