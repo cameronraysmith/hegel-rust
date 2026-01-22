@@ -42,7 +42,7 @@ hegel-rust/
 
 ### Execution Modes
 
-1. **Embedded Mode** (default): The SDK spawns the `hegel` CLI as a subprocess. The test binary creates a Unix socket server, and hegel connects to run test cases. Used when calling `hegel::hegel()` or `Hegel::new().run()`.
+1. **Embedded Mode** (default): The SDK spawns the `hegel` CLI as a subprocess. The test binary creates a Unix socket server, and hegel connects to run test cases. Used when calling `hegel::hegel()` or `Hegel::new().run()`. The build script automatically installs Python and hegel into a local venv, so no external setup is required.
 
 2. **External Mode**: The `hegel` CLI runs the test binary as a subprocess and provides the socket. The SDK connects as a client. Used when running tests via `hegel run ./test-binary`.
 
