@@ -11,7 +11,14 @@ Add to your `Cargo.toml`:
 hegel = { git = "ssh://git@github.com/antithesishq/hegel-rust" }
 ```
 
-The SDK automatically installs the Hegel CLI at compile time if not already on PATH.
+During build, `hegel-rust`:
+
+* Looks for `hegel` on PATH
+* Otherwise, installs hegel with uv
+   * Looks for `uv` on PATH
+   * Otherwise, installs uv from installer
+
+`hegel-rust` build artifacts are stored in cargo's `OUT_DIR / hegel`.
 
 ## Quick Start
 
