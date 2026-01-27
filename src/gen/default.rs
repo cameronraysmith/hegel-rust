@@ -1,7 +1,9 @@
 use super::{
-    booleans, floats, integers, optional, text, vecs, BoolGenerator, FloatGenerator,
-    IntegerGenerator, OptionalGenerator, TextGenerator, VecGenerator,
+    booleans, floats, hashmaps, integers, optional, text, vecs, BoolGenerator, FloatGenerator,
+    HashMapGenerator, IntegerGenerator, OptionalGenerator, TextGenerator, VecGenerator,
 };
+use std::collections::HashMap;
+use std::hash::Hash;
 
 /// Trait for types that have a default generator.
 ///
@@ -116,5 +118,16 @@ where
     type Generator = VecGenerator<T::Generator>;
     fn default_generator() -> Self::Generator {
         vecs(T::default_generator())
+    }
+}
+
+impl<K: DefaultGenerator, V: DefaultGenerator> DefaultGenerator for HashMap<K, V>
+where
+    K: serde::de::DeserializeOwned + Eq + Hash,
+    V: serde::de::DeserializeOwned,
+{
+    type Generator = HashMapGenerator<K::Generator, V::Generator>;
+    fn default_generator() -> Self::Generator {
+        hashmaps(K::default_generator(), V::default_generator())
     }
 }

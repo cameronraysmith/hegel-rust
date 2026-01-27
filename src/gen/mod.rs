@@ -15,7 +15,7 @@ mod value;
 
 // public api
 pub use binary::binary;
-pub use collections::{hashmaps, hashsets, vecs};
+pub use collections::{hashmaps, hashsets, vecs, HashMapGenerator};
 pub use combinators::{one_of, optional, sampled_from, sampled_from_slice, BoxedGenerator};
 pub use default::DefaultGenerator;
 pub use fixed_dict::fixed_dicts;

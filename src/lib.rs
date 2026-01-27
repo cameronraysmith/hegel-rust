@@ -102,7 +102,7 @@
 //! # hegel::hegel(|| {
 //! let vec: Vec<i32> = gen::vecs(gen::integers()).with_min_size(1).generate();
 //! let set: HashSet<i32> = gen::hashsets(gen::integers()).generate();
-//! let map: HashMap<String, i32> = gen::hashmaps(gen::integers()).generate();
+//! let map: HashMap<String, i32> = gen::hashmaps(gen::text(), gen::integers()).generate();
 //! # });
 //! ```
 //!

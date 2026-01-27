@@ -1,4 +1,4 @@
-use super::{generate_from_schema, group, integers, labels, text, Generate};
+use super::{generate_from_schema, group, integers, labels, Generate};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -161,13 +161,14 @@ pub fn hashsets<T, G: Generate<T>>(elements: G) -> HashSetGenerator<G> {
     }
 }
 
-pub struct HashMapGenerator<V> {
+pub struct HashMapGenerator<K, V> {
+    keys: K,
     values: V,
     min_size: usize,
     max_size: Option<usize>,
 }
 
-impl<V> HashMapGenerator<V> {
+impl<K, V> HashMapGenerator<K, V> {
     pub fn with_min_size(mut self, min: usize) -> Self {
         self.min_size = min;
         self
@@ -179,14 +180,18 @@ impl<V> HashMapGenerator<V> {
     }
 }
 
-impl<T, V> Generate<HashMap<String, T>> for HashMapGenerator<V>
+impl<K, V, KT, VT> Generate<HashMap<KT, VT>> for HashMapGenerator<K, V>
 where
-    V: Generate<T>,
-    T: serde::de::DeserializeOwned,
+    K: Generate<KT>,
+    V: Generate<VT>,
+    KT: serde::de::DeserializeOwned + Eq + std::hash::Hash,
+    VT: serde::de::DeserializeOwned,
 {
-    fn generate(&self) -> HashMap<String, T> {
+    fn generate(&self) -> HashMap<KT, VT> {
         if let Some(schema) = self.schema() {
-            generate_from_schema(&schema)
+            // Wire format: [[key, value], ...]
+            let pairs: Vec<(KT, VT)> = generate_from_schema(&schema);
+            pairs.into_iter().collect()
         } else {
             // Compositional fallback
             group(labels::MAP, || {
@@ -196,14 +201,12 @@ where
                     .with_max(max)
                     .generate();
 
-                let key_gen = text().with_min_size(1).with_max_size(20);
-
                 let mut map = HashMap::new();
                 let max_attempts = len * 10;
                 let mut attempts = 0;
                 while map.len() < len && attempts < max_attempts {
                     group(labels::MAP_ENTRY, || {
-                        let key = key_gen.generate();
+                        let key = self.keys.generate();
                         map.entry(key).or_insert_with(|| self.values.generate());
                     });
                     attempts += 1;
@@ -215,10 +218,12 @@ where
     }
 
     fn schema(&self) -> Option<Value> {
+        let key_schema = self.keys.schema()?;
         let value_schema = self.values.schema()?;
 
         let mut schema = json!({
             "type": "dict",
+            "keys": key_schema,
             "values": value_schema,
             "min_size": self.min_size
         });
@@ -231,11 +236,23 @@ where
     }
 }
 
-/// Generate hash maps with string keys.
+/// Generate hash maps.
 ///
-/// Keys are always strings due to JSON limitations.
-pub fn hashmaps<T, V: Generate<T>>(values: V) -> HashMapGenerator<V> {
+/// # Example
+///
+/// ```ignore
+/// use hegel::gen::{hashmaps, integers, text};
+/// use std::collections::HashMap;
+///
+/// // String keys
+/// let string_keyed: HashMap<String, i32> = hashmaps(text(), integers()).generate();
+///
+/// // Integer keys
+/// let int_keyed: HashMap<i32, String> = hashmaps(integers(), text()).generate();
+/// ```
+pub fn hashmaps<K, V>(keys: K, values: V) -> HashMapGenerator<K, V> {
     HashMapGenerator {
+        keys,
         values,
         min_size: 0,
         max_size: None,
