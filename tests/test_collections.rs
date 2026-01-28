@@ -1,5 +1,5 @@
 use hegel::gen::{self, Generate};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[test]
 fn test_vec_with_max_size() {
@@ -27,7 +27,7 @@ fn test_vec_with_min_size() {
 fn test_vec_with_min_and_max_size() {
     hegel::hegel(|| {
         let min_size: usize = gen::integers().with_min(0).with_max(10).generate();
-        let max_size = min_size + 10;
+        let max_size = gen::integers().with_min(min_size).generate();
         let vec: Vec<i32> = gen::vecs(gen::integers::<i32>())
             .with_min_size(min_size)
             .with_max_size(max_size)
@@ -39,7 +39,7 @@ fn test_vec_with_min_and_max_size() {
 #[test]
 fn test_vec_unique() {
     hegel::hegel(|| {
-        let max_size: usize = gen::integers().with_min(0).with_max(20).generate();
+        let max_size: usize = gen::integers().with_min(0).with_max(50).generate();
         let vec: Vec<i32> = gen::vecs(gen::integers::<i32>())
             .with_max_size(max_size)
             .unique()
@@ -53,7 +53,7 @@ fn test_vec_unique() {
 #[test]
 fn test_vec_unique_with_min_size() {
     hegel::hegel(|| {
-        let min_size: usize = gen::integers().with_min(1).with_max(10).generate();
+        let min_size: usize = gen::integers().with_min(0).with_max(20).generate();
         let vec: Vec<i32> = gen::vecs(gen::integers::<i32>())
             .with_min_size(min_size)
             .unique()
@@ -63,5 +63,75 @@ fn test_vec_unique_with_min_size() {
 
         let set: HashSet<_> = vec.iter().collect();
         assert_eq!(set.len(), vec.len());
+    });
+}
+
+#[test]
+fn test_hashset_with_max_size() {
+    hegel::hegel(|| {
+        let max_size: usize = gen::integers().with_min(0).with_max(20).generate();
+        let set: HashSet<i32> = gen::hashsets(gen::integers::<i32>())
+            .with_max_size(max_size)
+            .generate();
+        assert!(set.len() <= max_size);
+    });
+}
+
+#[test]
+fn test_hashset_with_min_size() {
+    hegel::hegel(|| {
+        let min_size: usize = gen::integers().with_min(0).with_max(20).generate();
+        let set: HashSet<i32> = gen::hashsets(gen::integers::<i32>())
+            .with_min_size(min_size)
+            .generate();
+        assert!(set.len() >= min_size);
+    });
+}
+
+#[test]
+fn test_hashset_with_min_and_max_size() {
+    hegel::hegel(|| {
+        let min_size: usize = gen::integers().with_min(0).with_max(10).generate();
+        let max_size = gen::integers().with_min(min_size).generate();
+        let set: HashSet<i32> = gen::hashsets(gen::integers::<i32>())
+            .with_min_size(min_size)
+            .with_max_size(max_size)
+            .generate();
+        assert!(set.len() >= min_size && set.len() <= max_size);
+    });
+}
+
+#[test]
+fn test_hashmap_with_max_size() {
+    hegel::hegel(|| {
+        let max_size: usize = gen::integers().with_min(0).with_max(20).generate();
+        let map: HashMap<i32, i32> = gen::hashmaps(gen::integers::<i32>(), gen::integers::<i32>())
+            .with_max_size(max_size)
+            .generate();
+        assert!(map.len() <= max_size);
+    });
+}
+
+#[test]
+fn test_hashmap_with_min_size() {
+    hegel::hegel(|| {
+        let min_size: usize = gen::integers().with_min(0).with_max(20).generate();
+        let map: HashMap<i32, i32> = gen::hashmaps(gen::integers::<i32>(), gen::integers::<i32>())
+            .with_min_size(min_size)
+            .generate();
+        assert!(map.len() >= min_size);
+    });
+}
+
+#[test]
+fn test_hashmap_with_min_and_max_size() {
+    hegel::hegel(|| {
+        let min_size: usize = gen::integers().with_min(0).with_max(10).generate();
+        let max_size = gen::integers().with_min(min_size).generate();
+        let map: HashMap<i32, i32> = gen::hashmaps(gen::integers::<i32>(), gen::integers::<i32>())
+            .with_min_size(min_size)
+            .with_max_size(max_size)
+            .generate();
+        assert!(map.len() >= min_size && map.len() <= max_size);
     });
 }
