@@ -1,3 +1,6 @@
+// internal helper code
+#![allow(dead_code)]
+
 use std::sync::{Arc, Mutex};
 
 use hegel::gen::Generate;

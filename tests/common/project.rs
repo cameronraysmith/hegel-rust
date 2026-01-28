@@ -1,3 +1,6 @@
+// internal helper code
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
 use tempfile::TempDir;
