@@ -67,6 +67,23 @@ fn test_vec_unique_with_min_size() {
 }
 
 #[test]
+fn test_vec_with_mapped_elements() {
+    hegel::hegel(|| {
+        let vec: Vec<i32> = gen::vecs(
+            gen::integers::<i32>()
+                .with_min(i32::MIN / 2)
+                .with_max(i32::MAX / 2)
+                .map(|x| x * 2),
+        )
+        .with_max_size(10)
+        .generate();
+        assert!(vec.iter().all(|&x| x % 2 == 0));
+    });
+}
+
+// HashSet tests
+
+#[test]
 fn test_hashset_with_max_size() {
     hegel::hegel(|| {
         let max_size: usize = gen::integers().with_min(0).with_max(20).generate();
@@ -102,6 +119,23 @@ fn test_hashset_with_min_and_max_size() {
 }
 
 #[test]
+fn test_hashset_with_mapped_elements() {
+    hegel::hegel(|| {
+        // Exclude i32::MIN to avoid overflow when taking abs
+        let set: HashSet<i32> = gen::hashsets(
+            gen::integers::<i32>()
+                .with_min(i32::MIN + 1)
+                .map(|x| x.abs()),
+        )
+        .with_max_size(10)
+        .generate();
+        assert!(set.iter().all(|&x| x >= 0));
+    });
+}
+
+// HashMap tests
+
+#[test]
 fn test_hashmap_with_max_size() {
     hegel::hegel(|| {
         let max_size: usize = gen::integers().with_min(0).with_max(20).generate();
@@ -133,36 +167,6 @@ fn test_hashmap_with_min_and_max_size() {
             .with_max_size(max_size)
             .generate();
         assert!(map.len() >= min_size && map.len() <= max_size);
-    });
-}
-
-#[test]
-fn test_vec_with_mapped_elements() {
-    hegel::hegel(|| {
-        let vec: Vec<i32> = gen::vecs(
-            gen::integers::<i32>()
-                .with_min(i32::MIN / 2)
-                .with_max(i32::MAX / 2)
-                .map(|x| x * 2),
-        )
-        .with_max_size(10)
-        .generate();
-        assert!(vec.iter().all(|&x| x % 2 == 0));
-    });
-}
-
-#[test]
-fn test_hashset_with_mapped_elements() {
-    hegel::hegel(|| {
-        // Exclude i32::MIN to avoid overflow when taking abs
-        let set: HashSet<i32> = gen::hashsets(
-            gen::integers::<i32>()
-                .with_min(i32::MIN + 1)
-                .map(|x| x.abs()),
-        )
-        .with_max_size(10)
-        .generate();
-        assert!(set.iter().all(|&x| x >= 0));
     });
 }
 
