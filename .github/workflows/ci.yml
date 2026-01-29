@@ -112,7 +112,7 @@ jobs:
         run: pytest test_conformance.py --durations=20 --durations-min=1.0
 
   nix:
-    name: nix integration
+    name: nix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -20,6 +20,32 @@ During build, `hegel-rust`:
 
 `hegel-rust` build artifacts are stored in cargo's `OUT_DIR / hegel`.
 
+### Nix
+
+To use hegel-rust in Nix:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    hegel-rust.url = "git+ssh://git@github.com/antithesishq/hegel-rust";
+  };
+
+  outputs = { nixpkgs, hegel-rust, ... }:
+    let
+      system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+      hegel = hegel-rust.inputs.hegel;
+    in
+    {
+      packages.${system}.default = pkgs.rustPlatform.buildRustPackage {
+        ...
+        nativeBuildInputs = [ hegel.packages.${system}.default ];
+      };
+    };
+}
+```
+
 ## Quick Start
 
 ```rust
