@@ -37,8 +37,6 @@ pub(crate) use strings::TextGenerator;
 use serde_json::{json, Value};
 
 pub(crate) mod exit_codes {
-    #[allow(dead_code)] // Reserved for future use
-    pub const TEST_FAILURE: i32 = 1;
     pub const SOCKET_ERROR: i32 = 134;
 }
 use std::cell::{Cell, RefCell};

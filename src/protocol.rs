@@ -425,30 +425,9 @@ impl Connection {
     }
 
     /// Close the connection.
-    #[allow(dead_code)]
     pub fn close(&self) -> std::io::Result<()> {
         let stream = self.stream.lock().unwrap();
         stream.shutdown(std::net::Shutdown::Both)
-    }
-}
-
-/// Perform version negotiation on a connection.
-#[allow(dead_code)]
-pub fn negotiate_version(connection: &Arc<Connection>) -> std::io::Result<()> {
-    let control = connection.control_channel();
-    let id = control.send_request(VERSION_NEGOTIATION_MESSAGE.to_vec())?;
-    let response = control.receive_response(id)?;
-
-    if response == VERSION_NEGOTIATION_OK {
-        Ok(())
-    } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::ConnectionRefused,
-            format!(
-                "Version negotiation failed: {:?}",
-                String::from_utf8_lossy(&response)
-            ),
-        ))
     }
 }
 
