@@ -205,9 +205,9 @@
 //!
 //! Set `HEGEL_DEBUG=1` to enable debug logging of requests/responses.
 
-pub(crate) mod embedded;
 pub mod gen;
 pub(crate) mod protocol;
+pub(crate) mod runner;
 
 pub use gen::Generate;
 
@@ -216,8 +216,8 @@ pub use gen::Generate;
 pub use paste;
 
 // re-export public api
-pub use embedded::{hegel, Hegel, Verbosity};
 pub use hegel_derive::Generate;
+pub use runner::{hegel, Hegel, Verbosity};
 
 /// Note a message which will be displayed with the reported failing test case.
 pub fn note(message: &str) {
