@@ -1,16 +1,15 @@
-use super::{generate_from_schema, Generate};
+use super::{BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_array, cbor_map};
-use ciborium::Value;
 
 pub struct EmailGenerator;
 
 impl Generate<String> for EmailGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "email"})
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "email"}))
     }
 }
 
@@ -22,11 +21,11 @@ pub struct UrlGenerator;
 
 impl Generate<String> for UrlGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "url"})
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "url"}))
     }
 }
 
@@ -47,14 +46,14 @@ impl DomainGenerator {
 
 impl Generate<String> for DomainGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {
             "type" => "domain",
             "max_length" => self.max_length as u64
-        })
+        }))
     }
 }
 
@@ -86,19 +85,19 @@ impl IpAddressGenerator {
 
 impl Generate<String> for IpAddressGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
         match self.version {
-            Some(IpVersion::V4) => Some(cbor_map! {"type" => "ipv4"}),
-            Some(IpVersion::V6) => Some(cbor_map! {"type" => "ipv6"}),
-            None => Some(cbor_map! {
+            Some(IpVersion::V4) => Some(BasicGenerator::new(cbor_map! {"type" => "ipv4"})),
+            Some(IpVersion::V6) => Some(BasicGenerator::new(cbor_map! {"type" => "ipv6"})),
+            None => Some(BasicGenerator::new(cbor_map! {
                 "one_of" => cbor_array![
                     cbor_map!{"type" => "ipv4"},
                     cbor_map!{"type" => "ipv6"}
                 ]
-            }),
+            })),
         }
     }
 }
@@ -111,11 +110,11 @@ pub struct DateGenerator;
 
 impl Generate<String> for DateGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "date"})
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "date"}))
     }
 }
 
@@ -127,11 +126,11 @@ pub struct TimeGenerator;
 
 impl Generate<String> for TimeGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "time"})
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "time"}))
     }
 }
 
@@ -143,11 +142,11 @@ pub struct DateTimeGenerator;
 
 impl Generate<String> for DateTimeGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "datetime"})
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "datetime"}))
     }
 }
 

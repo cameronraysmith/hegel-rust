@@ -1,4 +1,4 @@
-use super::{generate_from_schema, Generate};
+use super::{BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_map, map_insert};
 use ciborium::Value;
 
@@ -21,10 +21,10 @@ impl TextGenerator {
 
 impl Generate<String> for TextGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
         let mut schema = cbor_map! {
             "type" => "string",
             "min_size" => self.min_size as u64
@@ -34,7 +34,7 @@ impl Generate<String> for TextGenerator {
             map_insert(&mut schema, "max_size", Value::from(max as u64));
         }
 
-        Some(schema)
+        Some(BasicGenerator::new(schema))
     }
 }
 
@@ -60,15 +60,15 @@ impl RegexGenerator {
 
 impl Generate<String> for RegexGenerator {
     fn generate(&self) -> String {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {
+    fn as_basic(&self) -> Option<BasicGenerator<String>> {
+        Some(BasicGenerator::new(cbor_map! {
             "type" => "regex",
             "pattern" => self.pattern.as_str(),
             "fullmatch" => self.fullmatch
-        })
+        }))
     }
 }
 

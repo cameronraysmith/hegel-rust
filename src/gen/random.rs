@@ -25,7 +25,6 @@
 //! # });
 //! ```
 
-use ciborium::Value;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 
@@ -53,10 +52,6 @@ impl RandomsGenerator {
 }
 
 impl Generate<HegelRandom> for RandomsGenerator {
-    fn schema(&self) -> Option<Value> {
-        None
-    }
-
     fn generate(&self) -> HegelRandom {
         if self.use_true_random {
             let seed: u64 = integers().generate();
@@ -115,7 +110,7 @@ pub enum HegelRandom {
 }
 
 // Dummy Deserialize impl to satisfy trait bounds when composing with vecs(), etc.
-// This is never called at runtime since randoms().schema() returns None,
+// This is never called at runtime since randoms().as_basic() returns None,
 // causing collection generators to use compositional fallback.
 impl<'de> serde::Deserialize<'de> for HegelRandom {
     fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>

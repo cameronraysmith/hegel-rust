@@ -87,26 +87,10 @@ macro_rules! derive_generator {
                     }
                 }
 
-                fn schema(&self) -> Option<ciborium::Value> {
-                    use $crate::gen::Generate;
-
-                    let mut elements = Vec::new();
-
-                    $(
-                        let field_schema = self.$field_name.schema()?;
-                        elements.push(field_schema);
-                    )*
-
-                    Some(ciborium::Value::Map(vec![
-                        (
-                            ciborium::Value::Text("type".to_string()),
-                            ciborium::Value::Text("tuple".to_string()),
-                        ),
-                        (
-                            ciborium::Value::Text("elements".to_string()),
-                            ciborium::Value::Array(elements),
-                        ),
-                    ]))
+                fn as_basic(&self) -> Option<$crate::gen::BasicGenerator<$struct_name>> {
+                    // Struct generators are never basic since we can't deserialize
+                    // arbitrary user structs from CBOR
+                    None
                 }
             }
         }

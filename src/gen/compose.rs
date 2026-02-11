@@ -1,12 +1,11 @@
 use super::Generate;
-use ciborium::Value;
 
 /// A generator created from imperative code that calls `.generate()` on other generators.
 ///
 /// Use the `compose!` macro to create instances of this type.
 ///
 /// `ComposedGenerator` wraps a closure that produces values by composing
-/// multiple generator calls together. It has no schema (returns `None`),
+/// multiple generator calls together. It is never basic (returns `None` from `as_basic()`),
 /// since the composition is imperative and cannot be described as a single schema.
 pub struct ComposedGenerator<T, F> {
     f: F,
@@ -35,10 +34,6 @@ where
 {
     fn generate(&self) -> T {
         (self.f)()
-    }
-
-    fn schema(&self) -> Option<Value> {
-        None
     }
 }
 

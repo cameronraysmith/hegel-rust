@@ -1,6 +1,5 @@
-use super::{generate_from_schema, Generate};
+use super::{BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_map, cbor_serialize, map_insert};
-use ciborium::Value;
 use num::{Bounded, Float as NumFloat, Integer as NumInteger};
 use std::marker::PhantomData;
 
@@ -26,23 +25,30 @@ impl<T> IntegerGenerator<T> {
 
 impl<T> Generate<T> for IntegerGenerator<T>
 where
-    T: serde::de::DeserializeOwned + serde::Serialize + Bounded + NumInteger + Send + Sync + Copy,
+    T: serde::de::DeserializeOwned
+        + serde::Serialize
+        + Bounded
+        + NumInteger
+        + Send
+        + Sync
+        + Copy
+        + 'static,
 {
     fn generate(&self) -> T {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
+    fn as_basic(&self) -> Option<BasicGenerator<T>> {
         // Always include bounds - use type's min/max as defaults since Hegel
         // generates arbitrary precision integers without bounds
         let min = self.min.unwrap_or_else(T::min_value);
         let max = self.max.unwrap_or_else(T::max_value);
 
-        Some(cbor_map! {
+        Some(BasicGenerator::new(cbor_map! {
             "type" => "integer",
             "minimum" => cbor_serialize(&min),
             "maximum" => cbor_serialize(&max)
-        })
+        }))
     }
 }
 
@@ -128,13 +134,13 @@ impl<T> FloatGenerator<T> {
 
 impl<T> Generate<T> for FloatGenerator<T>
 where
-    T: serde::de::DeserializeOwned + serde::Serialize + NumFloat + Send + Sync,
+    T: serde::de::DeserializeOwned + serde::Serialize + NumFloat + Send + Sync + 'static,
 {
     fn generate(&self) -> T {
-        generate_from_schema(&self.schema().unwrap())
+        self.as_basic().unwrap().generate()
     }
 
-    fn schema(&self) -> Option<Value> {
+    fn as_basic(&self) -> Option<BasicGenerator<T>> {
         let width = (std::mem::size_of::<T>() * 8) as u64;
 
         let mut schema = cbor_map! {
@@ -166,7 +172,7 @@ where
             }
         }
 
-        Some(schema)
+        Some(BasicGenerator::new(schema))
     }
 }
 

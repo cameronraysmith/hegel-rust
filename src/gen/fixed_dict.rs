@@ -1,5 +1,5 @@
-use super::{generate_from_schema, group, labels, BoxedGenerator, Generate};
-use crate::cbor_helpers::{cbor_map, cbor_serialize};
+use super::{group, labels, BasicGenerator, BoxedGenerator, Generate};
+use crate::cbor_helpers::cbor_map;
 use ciborium::Value;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -9,13 +9,36 @@ pub(crate) struct MappedToValue<T, G> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G> {
+impl<T: serde::Serialize + serde::de::DeserializeOwned + 'static, G: Generate<T>> Generate<Value>
+    for MappedToValue<T, G>
+{
     fn generate(&self) -> Value {
-        cbor_serialize(&self.inner.generate())
+        crate::cbor_helpers::cbor_serialize(&self.inner.generate())
     }
 
-    fn schema(&self) -> Option<Value> {
-        self.inner.schema()
+    fn as_basic(&self) -> Option<BasicGenerator<Value>> {
+        let inner_basic = self.inner.as_basic()?;
+        // Map the inner basic generator to produce Value instead of T
+        if let Some(transform) = inner_basic.transform {
+            // Inner has a transform T -> T; we need Value -> Value
+            // We can't easily compose here since the output type differs,
+            // so just return the schema with a transform that applies the
+            // inner transform and serializes to Value
+            Some(BasicGenerator::with_transform(
+                inner_basic.schema,
+                move |raw| {
+                    let t_val = transform(raw);
+                    crate::cbor_helpers::cbor_serialize(&t_val)
+                },
+            ))
+        } else {
+            // Identity transform on inner - schema produces T directly,
+            // which is Value-compatible since it comes from the server as Value
+            // Just pass through the raw Value
+            Some(BasicGenerator::with_transform(inner_basic.schema, |raw| {
+                raw
+            }))
+        }
     }
 }
 
@@ -30,7 +53,7 @@ impl<'a> FixedDictBuilder<'a> {
     pub fn field<T, G>(mut self, name: &str, gen: G) -> Self
     where
         G: Generate<T> + Send + Sync + 'a,
-        T: serde::Serialize + 'a,
+        T: serde::Serialize + serde::de::DeserializeOwned + 'static,
     {
         let boxed = BoxedGenerator {
             inner: Arc::new(MappedToValue {
@@ -55,16 +78,8 @@ pub struct FixedDictGenerator<'a> {
 
 impl<'a> Generate<Value> for FixedDictGenerator<'a> {
     fn generate(&self) -> Value {
-        if let Some(schema) = self.schema() {
-            let values: Vec<Value> = generate_from_schema(&schema);
-            // Convert tuple back to object (map)
-            let entries: Vec<(Value, Value)> = self
-                .fields
-                .iter()
-                .zip(values)
-                .map(|((name, _), value)| (Value::Text(name.clone()), value))
-                .collect();
-            Value::Map(entries)
+        if let Some(basic) = self.as_basic() {
+            basic.generate()
         } else {
             // Compositional fallback
             group(labels::FIXED_DICT, || {
@@ -78,18 +93,69 @@ impl<'a> Generate<Value> for FixedDictGenerator<'a> {
         }
     }
 
-    fn schema(&self) -> Option<Value> {
-        let mut elements = Vec::new();
+    fn as_basic(&self) -> Option<BasicGenerator<Value>> {
+        // Collect basic generators for all fields
+        let basics: Vec<BasicGenerator<Value>> = self
+            .fields
+            .iter()
+            .map(|(_, gen)| gen.as_basic())
+            .collect::<Option<Vec<_>>>()?;
 
-        for (_, gen) in &self.fields {
-            let field_schema = gen.schema()?;
-            elements.push(field_schema);
-        }
+        let has_transforms = basics.iter().any(|b| b.transform.is_some());
 
-        Some(cbor_map! {
+        let schemas: Vec<Value> = basics.iter().map(|b| b.schema.clone()).collect();
+        let schema = cbor_map! {
             "type" => "tuple",
-            "elements" => Value::Array(elements)
-        })
+            "elements" => Value::Array(schemas)
+        };
+
+        if has_transforms {
+            type Transform = Option<Arc<dyn Fn(Value) -> Value + Send + Sync>>;
+            let transforms: Vec<Transform> = basics.into_iter().map(|b| b.transform).collect();
+            let field_names: Vec<String> =
+                self.fields.iter().map(|(name, _)| name.clone()).collect();
+
+            Some(BasicGenerator::with_transform(schema, move |raw| {
+                let arr = match raw {
+                    Value::Array(arr) => arr,
+                    _ => panic!("Expected array from tuple schema, got {:?}", raw),
+                };
+
+                let entries: Vec<(Value, Value)> = field_names
+                    .iter()
+                    .zip(arr)
+                    .zip(transforms.iter())
+                    .map(|((name, val), transform)| {
+                        let result = if let Some(ref t) = transform {
+                            t(val)
+                        } else {
+                            val
+                        };
+                        (Value::Text(name.clone()), result)
+                    })
+                    .collect();
+
+                Value::Map(entries)
+            }))
+        } else {
+            // All identity transforms - but we still need to convert the
+            // tuple array back to a map, so use a transform
+            let field_names: Vec<String> =
+                self.fields.iter().map(|(name, _)| name.clone()).collect();
+
+            Some(BasicGenerator::with_transform(schema, move |raw| {
+                let arr = match raw {
+                    Value::Array(arr) => arr,
+                    _ => panic!("Expected array from tuple schema, got {:?}", raw),
+                };
+                let entries: Vec<(Value, Value)> = field_names
+                    .iter()
+                    .zip(arr)
+                    .map(|(name, val)| (Value::Text(name.clone()), val))
+                    .collect();
+                Value::Map(entries)
+            }))
+        }
     }
 }
 
