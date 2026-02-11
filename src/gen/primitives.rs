@@ -1,6 +1,5 @@
 use super::{BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_map, cbor_serialize};
-use std::sync::OnceLock;
 
 pub fn unit() -> JustGenerator<()> {
     just(())
@@ -8,7 +7,7 @@ pub fn unit() -> JustGenerator<()> {
 
 pub struct JustGenerator<T> {
     value: T,
-    cached_basic: OnceLock<Option<BasicGenerator<T>>>,
+    cached_basic: Option<BasicGenerator<T>>,
 }
 
 impl<T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static> Generate<T>
@@ -19,22 +18,19 @@ impl<T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + '
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<T>> {
-        self.cached_basic
-            .get_or_init(|| {
-                Some(BasicGenerator::new(
-                    cbor_map! {"const" => cbor_serialize(&self.value)},
-                ))
-            })
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn just<T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static>(
     value: T,
 ) -> JustGenerator<T> {
+    let cached_basic = Some(BasicGenerator::new(
+        cbor_map! {"const" => cbor_serialize(&value)},
+    ));
     JustGenerator {
         value,
-        cached_basic: OnceLock::new(),
+        cached_basic,
     }
 }
 
@@ -52,7 +48,7 @@ pub fn just_any<T: Clone + Send + Sync>(value: T) -> JustAnyGenerator<T> {
 }
 
 pub struct BoolGenerator {
-    cached_basic: OnceLock<Option<BasicGenerator<bool>>>,
+    cached_basic: Option<BasicGenerator<bool>>,
 }
 
 impl Generate<bool> for BoolGenerator {
@@ -61,14 +57,12 @@ impl Generate<bool> for BoolGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<bool>> {
-        self.cached_basic
-            .get_or_init(|| Some(BasicGenerator::new(cbor_map! {"type" => "boolean"})))
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn booleans() -> BoolGenerator {
     BoolGenerator {
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(BasicGenerator::new(cbor_map! {"type" => "boolean"})),
     }
 }

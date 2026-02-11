@@ -1,9 +1,8 @@
 use super::{BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_array, cbor_map};
-use std::sync::OnceLock;
 
 pub struct EmailGenerator {
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl Generate<String> for EmailGenerator {
@@ -12,20 +11,18 @@ impl Generate<String> for EmailGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| Some(BasicGenerator::new(cbor_map! {"type" => "email"})))
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn emails() -> EmailGenerator {
     EmailGenerator {
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(BasicGenerator::new(cbor_map! {"type" => "email"})),
     }
 }
 
 pub struct UrlGenerator {
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl Generate<String> for UrlGenerator {
@@ -34,27 +31,25 @@ impl Generate<String> for UrlGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| Some(BasicGenerator::new(cbor_map! {"type" => "url"})))
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn urls() -> UrlGenerator {
     UrlGenerator {
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(BasicGenerator::new(cbor_map! {"type" => "url"})),
     }
 }
 
 pub struct DomainGenerator {
     max_length: usize,
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl DomainGenerator {
     pub fn with_max_length(mut self, max: usize) -> Self {
         self.max_length = max;
-        self.cached_basic = OnceLock::new();
+        self.cached_basic = Some(compute_domain_basic(self.max_length));
         self
     }
 }
@@ -65,21 +60,21 @@ impl Generate<String> for DomainGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| {
-                Some(BasicGenerator::new(cbor_map! {
-                    "type" => "domain",
-                    "max_length" => self.max_length as u64
-                }))
-            })
-            .clone()
+        self.cached_basic.clone()
     }
+}
+
+fn compute_domain_basic(max_length: usize) -> BasicGenerator<String> {
+    BasicGenerator::new(cbor_map! {
+        "type" => "domain",
+        "max_length" => max_length as u64
+    })
 }
 
 pub fn domains() -> DomainGenerator {
     DomainGenerator {
         max_length: 255,
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(compute_domain_basic(255)),
     }
 }
 
@@ -91,19 +86,19 @@ pub enum IpVersion {
 
 pub struct IpAddressGenerator {
     version: Option<IpVersion>,
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl IpAddressGenerator {
     pub fn v4(mut self) -> Self {
         self.version = Some(IpVersion::V4);
-        self.cached_basic = OnceLock::new();
+        self.cached_basic = Some(compute_ip_basic(self.version));
         self
     }
 
     pub fn v6(mut self) -> Self {
         self.version = Some(IpVersion::V6);
-        self.cached_basic = OnceLock::new();
+        self.cached_basic = Some(compute_ip_basic(self.version));
         self
     }
 }
@@ -114,30 +109,32 @@ impl Generate<String> for IpAddressGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| match self.version {
-                Some(IpVersion::V4) => Some(BasicGenerator::new(cbor_map! {"type" => "ipv4"})),
-                Some(IpVersion::V6) => Some(BasicGenerator::new(cbor_map! {"type" => "ipv6"})),
-                None => Some(BasicGenerator::new(cbor_map! {
-                    "one_of" => cbor_array![
-                        cbor_map!{"type" => "ipv4"},
-                        cbor_map!{"type" => "ipv6"}
-                    ]
-                })),
-            })
-            .clone()
+        self.cached_basic.clone()
+    }
+}
+
+fn compute_ip_basic(version: Option<IpVersion>) -> BasicGenerator<String> {
+    match version {
+        Some(IpVersion::V4) => BasicGenerator::new(cbor_map! {"type" => "ipv4"}),
+        Some(IpVersion::V6) => BasicGenerator::new(cbor_map! {"type" => "ipv6"}),
+        None => BasicGenerator::new(cbor_map! {
+            "one_of" => cbor_array![
+                cbor_map!{"type" => "ipv4"},
+                cbor_map!{"type" => "ipv6"}
+            ]
+        }),
     }
 }
 
 pub fn ip_addresses() -> IpAddressGenerator {
     IpAddressGenerator {
         version: None,
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(compute_ip_basic(None)),
     }
 }
 
 pub struct DateGenerator {
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl Generate<String> for DateGenerator {
@@ -146,20 +143,18 @@ impl Generate<String> for DateGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| Some(BasicGenerator::new(cbor_map! {"type" => "date"})))
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn dates() -> DateGenerator {
     DateGenerator {
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(BasicGenerator::new(cbor_map! {"type" => "date"})),
     }
 }
 
 pub struct TimeGenerator {
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl Generate<String> for TimeGenerator {
@@ -168,20 +163,18 @@ impl Generate<String> for TimeGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| Some(BasicGenerator::new(cbor_map! {"type" => "time"})))
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn times() -> TimeGenerator {
     TimeGenerator {
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(BasicGenerator::new(cbor_map! {"type" => "time"})),
     }
 }
 
 pub struct DateTimeGenerator {
-    cached_basic: OnceLock<Option<BasicGenerator<String>>>,
+    cached_basic: Option<BasicGenerator<String>>,
 }
 
 impl Generate<String> for DateTimeGenerator {
@@ -190,14 +183,12 @@ impl Generate<String> for DateTimeGenerator {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<String>> {
-        self.cached_basic
-            .get_or_init(|| Some(BasicGenerator::new(cbor_map! {"type" => "datetime"})))
-            .clone()
+        self.cached_basic.clone()
     }
 }
 
 pub fn datetimes() -> DateTimeGenerator {
     DateTimeGenerator {
-        cached_basic: OnceLock::new(),
+        cached_basic: Some(BasicGenerator::new(cbor_map! {"type" => "datetime"})),
     }
 }

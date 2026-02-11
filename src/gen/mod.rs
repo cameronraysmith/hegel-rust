@@ -657,7 +657,6 @@ pub trait Generate<T>: Send + Sync {
             source: self,
             f,
             _phantom: PhantomData,
-            cached_basic: std::sync::OnceLock::new(),
         }
     }
 
