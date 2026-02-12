@@ -1,9 +1,8 @@
-use super::{group, integers, labels, BasicGenerator, Collection, Generate, RawParse};
+use super::{group, integers, labels, BasicGenerator, Collection, Generate};
 use crate::cbor_helpers::{cbor_map, map_insert};
 use ciborium::Value;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::mem::MaybeUninit;
 
 /// Extract an array from a Value, handling both plain Arrays and CBOR Tag(258, Array)
 /// which is the standard CBOR tag for sets.
@@ -42,7 +41,7 @@ impl<G> VecGenerator<G> {
     }
 }
 
-impl<T, G> Generate<Vec<T>> for VecGenerator<G>
+impl<T: 'static, G> Generate<Vec<T>> for VecGenerator<G>
 where
     G: Generate<T>,
 {
@@ -63,10 +62,9 @@ where
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, Vec<T>>> {
+    fn as_basic(&self) -> Option<BasicGenerator<Vec<T>>> {
         let elem_basic = self.elements.as_basic()?;
         let elem_schema = elem_basic.schema().clone();
-        let elem_raw = elem_basic.into_raw();
 
         let schema_type = if self.unique { "set" } else { "list" };
 
@@ -80,30 +78,10 @@ where
             map_insert(&mut schema, "max_size", Value::from(max as u64));
         }
 
-        // Capture elem_raw (no T) to avoid T: 'a requirement
-        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-            Box::new(move |raw, out_ptr| {
-                let arr = extract_array(raw);
-                let result: Vec<T> = arr
-                    .into_iter()
-                    .map(|v| {
-                        let mut out = MaybeUninit::<T>::uninit();
-                        // SAFETY: elem_raw was created for type T
-                        unsafe { elem_raw.invoke(v, out.as_mut_ptr() as *mut u8) };
-                        unsafe { out.assume_init() }
-                    })
-                    .collect();
-                // SAFETY: out_ptr is properly aligned for Vec<T>
-                unsafe { std::ptr::write(out_ptr as *mut Vec<T>, result) };
-            });
-
-        // SAFETY: writer always writes exactly one Vec<T>
-        Some(unsafe {
-            BasicGenerator::from_raw(RawParse {
-                schema,
-                call: writer,
-            })
-        })
+        Some(BasicGenerator::new(schema, move |raw| {
+            let arr = extract_array(raw);
+            arr.into_iter().map(|v| elem_basic.parse_raw(v)).collect()
+        }))
     }
 }
 
@@ -135,7 +113,7 @@ impl<G> HashSetGenerator<G> {
     }
 }
 
-impl<T, G> Generate<HashSet<T>> for HashSetGenerator<G>
+impl<T: 'static, G> Generate<HashSet<T>> for HashSetGenerator<G>
 where
     G: Generate<T>,
     T: Eq + Hash,
@@ -163,10 +141,9 @@ where
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, HashSet<T>>> {
+    fn as_basic(&self) -> Option<BasicGenerator<HashSet<T>>> {
         let elem_basic = self.elements.as_basic()?;
         let elem_schema = elem_basic.schema().clone();
-        let elem_raw = elem_basic.into_raw();
 
         let mut schema = cbor_map! {
             "type" => "set",
@@ -178,26 +155,10 @@ where
             map_insert(&mut schema, "max_size", Value::from(max as u64));
         }
 
-        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-            Box::new(move |raw, out_ptr| {
-                let arr = extract_array(raw);
-                let result: HashSet<T> = arr
-                    .into_iter()
-                    .map(|v| {
-                        let mut out = MaybeUninit::<T>::uninit();
-                        unsafe { elem_raw.invoke(v, out.as_mut_ptr() as *mut u8) };
-                        unsafe { out.assume_init() }
-                    })
-                    .collect();
-                unsafe { std::ptr::write(out_ptr as *mut HashSet<T>, result) };
-            });
-
-        Some(unsafe {
-            BasicGenerator::from_raw(RawParse {
-                schema,
-                call: writer,
-            })
-        })
+        Some(BasicGenerator::new(schema, move |raw| {
+            let arr = extract_array(raw);
+            arr.into_iter().map(|v| elem_basic.parse_raw(v)).collect()
+        }))
     }
 }
 
@@ -228,7 +189,7 @@ impl<K, V> HashMapGenerator<K, V> {
     }
 }
 
-impl<K, V, KT, VT> Generate<HashMap<KT, VT>> for HashMapGenerator<K, V>
+impl<K, V, KT: 'static, VT: 'static> Generate<HashMap<KT, VT>> for HashMapGenerator<K, V>
 where
     K: Generate<KT>,
     V: Generate<VT>,
@@ -262,14 +223,12 @@ where
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, HashMap<KT, VT>>> {
+    fn as_basic(&self) -> Option<BasicGenerator<HashMap<KT, VT>>> {
         let key_basic = self.keys.as_basic()?;
         let val_basic = self.values.as_basic()?;
 
         let key_schema = key_basic.schema().clone();
         let val_schema = val_basic.schema().clone();
-        let key_raw = key_basic.into_raw();
-        let val_raw = val_basic.into_raw();
 
         let mut schema = cbor_map! {
             "type" => "dict",
@@ -282,42 +241,29 @@ where
             map_insert(&mut schema, "max_size", Value::from(max as u64));
         }
 
-        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-            Box::new(move |raw, out_ptr| {
-                // Wire format: [[key, value], ...]
-                let pairs = match raw {
+        Some(BasicGenerator::new(schema, move |raw| {
+            // Wire format: [[key, value], ...]
+            let pairs = match raw {
+                Value::Array(arr) => arr,
+                _ => panic!("Expected array of pairs from dict schema, got {:?}", raw),
+            };
+
+            let mut map = HashMap::new();
+            for pair in pairs {
+                let mut pair_arr = match pair {
                     Value::Array(arr) => arr,
-                    _ => panic!("Expected array of pairs from dict schema, got {:?}", raw),
+                    _ => panic!("Expected pair array, got {:?}", pair),
                 };
+                let raw_value = pair_arr.pop().unwrap();
+                let raw_key = pair_arr.pop().unwrap();
 
-                let mut map = HashMap::new();
-                for pair in pairs {
-                    let mut pair_arr = match pair {
-                        Value::Array(arr) => arr,
-                        _ => panic!("Expected pair array, got {:?}", pair),
-                    };
-                    let raw_value = pair_arr.pop().unwrap();
-                    let raw_key = pair_arr.pop().unwrap();
+                let key = key_basic.parse_raw(raw_key);
+                let value = val_basic.parse_raw(raw_value);
 
-                    let mut k_out = MaybeUninit::<KT>::uninit();
-                    unsafe { key_raw.invoke(raw_key, k_out.as_mut_ptr() as *mut u8) };
-                    let key = unsafe { k_out.assume_init() };
-
-                    let mut v_out = MaybeUninit::<VT>::uninit();
-                    unsafe { val_raw.invoke(raw_value, v_out.as_mut_ptr() as *mut u8) };
-                    let value = unsafe { v_out.assume_init() };
-
-                    map.insert(key, value);
-                }
-                unsafe { std::ptr::write(out_ptr as *mut HashMap<KT, VT>, map) };
-            });
-
-        Some(unsafe {
-            BasicGenerator::from_raw(RawParse {
-                schema,
-                call: writer,
-            })
-        })
+                map.insert(key, value);
+            }
+            map
+        }))
     }
 }
 

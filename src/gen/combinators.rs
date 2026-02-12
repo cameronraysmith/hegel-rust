@@ -1,23 +1,21 @@
 use super::{
     discardable_group, generate_from_schema, group, integers, labels, BasicGenerator, Generate,
-    RawParse,
 };
 use crate::cbor_helpers::{cbor_array, cbor_map, cbor_serialize};
 use ciborium::Value;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::sync::Arc;
 
 pub struct Mapped<T, U, F, G> {
     pub(crate) source: G,
-    pub(crate) f: F,
-    pub(crate) _phantom: PhantomData<(T, U)>,
+    pub(crate) f: Arc<F>,
+    pub(crate) _phantom: PhantomData<fn(T) -> U>,
 }
 
-impl<T, U, F, G> Generate<U> for Mapped<T, U, F, G>
+impl<T: 'static, U: 'static, F, G> Generate<U> for Mapped<T, U, F, G>
 where
     G: Generate<T>,
-    F: Fn(T) -> U + Send + Sync,
+    F: Fn(T) -> U + Send + Sync + 'static,
 {
     fn generate(&self) -> U {
         if let Some(basic) = self.as_basic() {
@@ -27,31 +25,17 @@ where
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, U>> {
+    fn as_basic(&self) -> Option<BasicGenerator<U>> {
         let source_basic = self.source.as_basic()?;
-        Some(source_basic.map(&self.f))
+        let f = Arc::clone(&self.f);
+        Some(source_basic.map(move |t| f(t)))
     }
-}
-
-// Safety: Mapped is Send+Sync if its components are
-unsafe impl<T, U, F, G> Send for Mapped<T, U, F, G>
-where
-    G: Send,
-    F: Send,
-{
-}
-
-unsafe impl<T, U, F, G> Sync for Mapped<T, U, F, G>
-where
-    G: Sync,
-    F: Sync,
-{
 }
 
 pub struct FlatMapped<T, U, G2, F, G1> {
     pub(crate) source: G1,
     pub(crate) f: F,
-    pub(crate) _phantom: PhantomData<(T, U, G2)>,
+    pub(crate) _phantom: PhantomData<fn(T) -> (U, G2)>,
 }
 
 impl<T, U, G2, F, G1> Generate<U> for FlatMapped<T, U, G2, F, G1>
@@ -69,24 +53,10 @@ where
     }
 }
 
-unsafe impl<T, U, G2, F, G1> Send for FlatMapped<T, U, G2, F, G1>
-where
-    G1: Send,
-    F: Send,
-{
-}
-
-unsafe impl<T, U, G2, F, G1> Sync for FlatMapped<T, U, G2, F, G1>
-where
-    G1: Sync,
-    F: Sync,
-{
-}
-
 pub struct Filtered<T, F, G> {
     pub(crate) source: G,
     pub(crate) predicate: F,
-    pub(crate) _phantom: PhantomData<T>,
+    pub(crate) _phantom: PhantomData<fn() -> T>,
 }
 
 impl<T, F, G> Generate<T> for Filtered<T, F, G>
@@ -110,20 +80,6 @@ where
         crate::assume(false);
         unreachable!()
     }
-}
-
-unsafe impl<T, F, G> Send for Filtered<T, F, G>
-where
-    G: Send,
-    F: Send,
-{
-}
-
-unsafe impl<T, F, G> Sync for Filtered<T, F, G>
-where
-    G: Sync,
-    F: Sync,
-{
 }
 
 // ============================================================================
@@ -157,7 +113,7 @@ impl<'a, T> Generate<T> for BoxedGenerator<'a, T> {
         self.inner.generate()
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
+    fn as_basic(&self) -> Option<BasicGenerator<T>> {
         self.inner.as_basic()
     }
 
@@ -174,7 +130,7 @@ pub struct SampledFromGenerator<T> {
     elements: Vec<T>,
 }
 
-impl<T: Clone + Send + Sync + serde::Serialize> Generate<T> for SampledFromGenerator<T> {
+impl<T: Clone + Send + Sync + 'static> Generate<T> for SampledFromGenerator<T> {
     fn generate(&self) -> T {
         crate::assume(!self.elements.is_empty());
 
@@ -190,49 +146,25 @@ impl<T: Clone + Send + Sync + serde::Serialize> Generate<T> for SampledFromGener
         self.elements[idx].clone()
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
+    fn as_basic(&self) -> Option<BasicGenerator<T>> {
         if self.elements.is_empty() {
             return None;
         }
 
-        // Only use sampled_from schema for CBOR-primitive types
-        let cbor_values: Vec<Value> = self.elements.iter().map(|e| cbor_serialize(e)).collect();
-
-        let all_primitive = cbor_values.iter().all(|v| {
-            matches!(
-                v,
-                Value::Null | Value::Bool(_) | Value::Integer(_) | Value::Float(_) | Value::Text(_)
-            )
-        });
-
-        if all_primitive {
-            let schema = cbor_map! {
-                "type" => "integer",
-                "minimum" => 0u64,
-                "maximum" => (self.elements.len() - 1) as u64
-            };
-            let elements = &self.elements;
-            let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-                Box::new(move |raw, out_ptr| {
-                    let idx: usize = super::deserialize_value(raw);
-                    let result = elements[idx].clone();
-                    unsafe { std::ptr::write(out_ptr as *mut T, result) };
-                });
-            Some(unsafe {
-                BasicGenerator::from_raw(RawParse {
-                    schema,
-                    call: writer,
-                })
-            })
-        } else {
-            None
-        }
+        let schema = cbor_map! {
+            "type" => "integer",
+            "minimum" => 0u64,
+            "maximum" => (self.elements.len() - 1) as u64
+        };
+        let elements = self.elements.clone();
+        Some(BasicGenerator::new(schema, move |raw| {
+            let idx: usize = super::deserialize_value(raw);
+            elements[idx].clone()
+        }))
     }
 }
 
-pub fn sampled_from<T: Clone + Send + Sync + serde::Serialize>(
-    elements: Vec<T>,
-) -> SampledFromGenerator<T> {
+pub fn sampled_from<T: Clone + Send + Sync + 'static>(elements: Vec<T>) -> SampledFromGenerator<T> {
     SampledFromGenerator { elements }
 }
 
@@ -240,8 +172,8 @@ pub struct SampledFromSliceGenerator<'a, T> {
     elements: &'a [T],
 }
 
-impl<'a, T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned> Generate<T>
-    for SampledFromSliceGenerator<'a, T>
+impl<'a, T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static>
+    Generate<T> for SampledFromSliceGenerator<'a, T>
 {
     fn generate(&self) -> T {
         crate::assume(!self.elements.is_empty());
@@ -260,29 +192,15 @@ impl<'a, T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
+    fn as_basic(&self) -> Option<BasicGenerator<T>> {
         if self.elements.is_empty() {
             return None;
         }
         let cbor_values: Vec<Value> = self.elements.iter().map(|e| cbor_serialize(e)).collect();
         let schema = cbor_map! {"sampled_from" => Value::Array(cbor_values)};
-        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-            Box::new(move |raw, out_ptr| {
-                let result: T = super::deserialize_value(raw);
-                unsafe { std::ptr::write(out_ptr as *mut T, result) };
-            });
-        Some(unsafe {
-            BasicGenerator::from_raw(RawParse {
-                schema,
-                call: writer,
-            })
-        })
+        Some(BasicGenerator::new(schema, super::deserialize_value::<T>))
     }
 }
-
-// Safety: SampledFromSliceGenerator is Send+Sync if T is Send+Sync
-unsafe impl<'a, T: Send + Sync> Send for SampledFromSliceGenerator<'a, T> {}
-unsafe impl<'a, T: Send + Sync> Sync for SampledFromSliceGenerator<'a, T> {}
 
 /// Sample uniformly from a borrowed slice.
 ///
@@ -299,7 +217,7 @@ unsafe impl<'a, T: Send + Sync> Sync for SampledFromSliceGenerator<'a, T> {}
 /// let value = gen.generate();
 /// ```
 pub fn sampled_from_slice<
-    T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned,
+    T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static,
 >(
     elements: &[T],
 ) -> SampledFromSliceGenerator<'_, T> {
@@ -310,7 +228,7 @@ pub struct OneOfGenerator<'a, T> {
     generators: Vec<BoxedGenerator<'a, T>>,
 }
 
-impl<'a, T> Generate<T> for OneOfGenerator<'a, T> {
+impl<'a, T: 'static> Generate<T> for OneOfGenerator<'a, T> {
     fn generate(&self) -> T {
         crate::assume(!self.generators.is_empty());
 
@@ -328,8 +246,8 @@ impl<'a, T> Generate<T> for OneOfGenerator<'a, T> {
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
-        let basics: Vec<BasicGenerator<'_, T>> = self
+    fn as_basic(&self) -> Option<BasicGenerator<T>> {
+        let basics: Vec<BasicGenerator<T>> = self
             .generators
             .iter()
             .map(|g| g.as_basic())
@@ -351,33 +269,21 @@ impl<'a, T> Generate<T> for OneOfGenerator<'a, T> {
 
         let schema = cbor_map! {"one_of" => Value::Array(tagged_schemas)};
 
-        // Extract raw parse closures (no T) to avoid T: 'a requirement
-        let raws: Vec<RawParse<'_>> = basics.into_iter().map(|b| b.into_raw()).collect();
-
-        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-            Box::new(move |raw, out_ptr| {
-                let arr = match raw {
-                    Value::Array(arr) => arr,
-                    _ => panic!("Expected array from tagged tuple, got {:?}", raw),
-                };
-                let tag = match &arr[0] {
-                    Value::Integer(i) => {
-                        let val: i128 = (*i).into();
-                        val as usize
-                    }
-                    _ => panic!("Expected integer tag, got {:?}", arr[0]),
-                };
-                let value = arr.into_iter().nth(1).unwrap();
-                // SAFETY: raws[tag] was created for type T
-                unsafe { raws[tag].invoke(value, out_ptr) };
-            });
-
-        Some(unsafe {
-            BasicGenerator::from_raw(RawParse {
-                schema,
-                call: writer,
-            })
-        })
+        Some(BasicGenerator::new(schema, move |raw| {
+            let arr = match raw {
+                Value::Array(arr) => arr,
+                _ => panic!("Expected array from tagged tuple, got {:?}", raw),
+            };
+            let tag = match &arr[0] {
+                Value::Integer(i) => {
+                    let val: i128 = (*i).into();
+                    val as usize
+                }
+                _ => panic!("Expected integer tag, got {:?}", arr[0]),
+            };
+            let value = arr.into_iter().nth(1).unwrap();
+            basics[tag].parse_raw(value)
+        }))
     }
 }
 
@@ -417,7 +323,7 @@ pub struct OptionalGenerator<G> {
     inner: G,
 }
 
-impl<T, G> Generate<Option<T>> for OptionalGenerator<G>
+impl<T: 'static, G> Generate<Option<T>> for OptionalGenerator<G>
 where
     G: Generate<T>,
 {
@@ -437,10 +343,9 @@ where
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, Option<T>>> {
+    fn as_basic(&self) -> Option<BasicGenerator<Option<T>>> {
         let inner_basic = self.inner.as_basic()?;
         let inner_schema = inner_basic.schema().clone();
-        let inner_raw = inner_basic.into_raw();
 
         let null_schema = cbor_map! {
             "type" => "tuple",
@@ -459,40 +364,26 @@ where
 
         let schema = cbor_map! {"one_of" => cbor_array![null_schema, value_schema]};
 
-        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
-            Box::new(move |raw, out_ptr| {
-                let arr = match raw {
-                    Value::Array(arr) => arr,
-                    _ => panic!("Expected array from tagged tuple, got {:?}", raw),
-                };
-                let tag = match &arr[0] {
-                    Value::Integer(i) => {
-                        let val: i128 = (*i).into();
-                        val as usize
-                    }
-                    _ => panic!("Expected integer tag, got {:?}", arr[0]),
-                };
-
-                if tag == 0 {
-                    let result: Option<T> = None;
-                    unsafe { std::ptr::write(out_ptr as *mut Option<T>, result) };
-                } else {
-                    let value = arr.into_iter().nth(1).unwrap();
-                    let mut t_out = MaybeUninit::<T>::uninit();
-                    // SAFETY: inner_raw was created for type T
-                    unsafe { inner_raw.invoke(value, t_out.as_mut_ptr() as *mut u8) };
-                    let t_val = unsafe { t_out.assume_init() };
-                    let result: Option<T> = Some(t_val);
-                    unsafe { std::ptr::write(out_ptr as *mut Option<T>, result) };
+        Some(BasicGenerator::new(schema, move |raw| {
+            let arr = match raw {
+                Value::Array(arr) => arr,
+                _ => panic!("Expected array from tagged tuple, got {:?}", raw),
+            };
+            let tag = match &arr[0] {
+                Value::Integer(i) => {
+                    let val: i128 = (*i).into();
+                    val as usize
                 }
-            });
+                _ => panic!("Expected integer tag, got {:?}", arr[0]),
+            };
 
-        Some(unsafe {
-            BasicGenerator::from_raw(RawParse {
-                schema,
-                call: writer,
-            })
-        })
+            if tag == 0 {
+                None
+            } else {
+                let value = arr.into_iter().nth(1).unwrap();
+                Some(inner_basic.parse_raw(value))
+            }
+        }))
     }
 }
 

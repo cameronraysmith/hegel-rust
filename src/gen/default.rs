@@ -107,7 +107,7 @@ impl DefaultGenerator for f64 {
     }
 }
 
-impl<T: DefaultGenerator> DefaultGenerator for Option<T>
+impl<T: DefaultGenerator + 'static> DefaultGenerator for Option<T>
 where
     T::Generator: Send + Sync,
 {
@@ -117,7 +117,7 @@ where
     }
 }
 
-impl<T: DefaultGenerator> DefaultGenerator for Vec<T>
+impl<T: DefaultGenerator + 'static> DefaultGenerator for Vec<T>
 where
     T::Generator: Send + Sync,
 {
@@ -127,7 +127,8 @@ where
     }
 }
 
-impl<K: DefaultGenerator, V: DefaultGenerator> DefaultGenerator for HashMap<K, V>
+impl<K: DefaultGenerator + 'static, V: DefaultGenerator + 'static> DefaultGenerator
+    for HashMap<K, V>
 where
     K: Eq + Hash,
     K::Generator: Send + Sync,

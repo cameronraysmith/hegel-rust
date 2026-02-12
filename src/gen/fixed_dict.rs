@@ -6,15 +6,15 @@ use std::sync::Arc;
 
 pub(crate) struct MappedToValue<T, G> {
     inner: G,
-    _phantom: PhantomData<T>,
+    _phantom: PhantomData<fn() -> T>,
 }
 
-impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G> {
+impl<T: serde::Serialize + 'static, G: Generate<T>> Generate<Value> for MappedToValue<T, G> {
     fn generate(&self) -> Value {
         crate::cbor_helpers::cbor_serialize(&self.inner.generate())
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
+    fn as_basic(&self) -> Option<BasicGenerator<Value>> {
         let inner_basic = self.inner.as_basic()?;
         let schema = inner_basic.schema().clone();
         Some(BasicGenerator::new(schema, move |raw| {
@@ -24,9 +24,6 @@ impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G
     }
 }
 
-unsafe impl<T, G: Send> Send for MappedToValue<T, G> {}
-unsafe impl<T, G: Sync> Sync for MappedToValue<T, G> {}
-
 pub struct FixedDictBuilder<'a> {
     fields: Vec<(String, BoxedGenerator<'a, Value>)>,
 }
@@ -35,12 +32,12 @@ impl<'a> FixedDictBuilder<'a> {
     pub fn field<T, G>(mut self, name: &str, gen: G) -> Self
     where
         G: Generate<T> + Send + Sync + 'a,
-        T: serde::Serialize + 'a,
+        T: serde::Serialize + 'static,
     {
         let boxed = BoxedGenerator {
             inner: Arc::new(MappedToValue {
                 inner: gen,
-                _phantom: PhantomData::<T>,
+                _phantom: PhantomData,
             }),
         };
         self.fields.push((name.to_string(), boxed));
@@ -75,8 +72,8 @@ impl<'a> Generate<Value> for FixedDictGenerator<'a> {
         }
     }
 
-    fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
-        let basics: Vec<BasicGenerator<'_, Value>> = self
+    fn as_basic(&self) -> Option<BasicGenerator<Value>> {
+        let basics: Vec<BasicGenerator<Value>> = self
             .fields
             .iter()
             .map(|(_, gen)| gen.as_basic())
