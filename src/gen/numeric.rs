@@ -93,8 +93,8 @@ pub struct FloatGenerator<T> {
     max: Option<T>,
     exclude_min: bool,
     exclude_max: bool,
-    allow_nan: bool,
-    allow_infinity: bool,
+    allow_nan: Option<bool>,
+    allow_infinity: Option<bool>,
 }
 
 impl<T> FloatGenerator<T> {
@@ -122,15 +122,15 @@ impl<T> FloatGenerator<T> {
         self
     }
 
-    /// Set whether NaN values can be generated.
+    /// Whether NaN values can be generated.
     pub fn allow_nan(mut self, allow: bool) -> Self {
-        self.allow_nan = allow;
+        self.allow_nan = Some(allow);
         self
     }
 
-    /// Set whether infinity values can be generated.
+    /// Whether infinity values can be generated.
     pub fn allow_infinity(mut self, allow: bool) -> Self {
-        self.allow_infinity = allow;
+        self.allow_infinity = Some(allow);
         self
     }
 }
@@ -141,13 +141,18 @@ where
 {
     fn build_schema(&self) -> Value {
         let width = (std::mem::size_of::<T>() * 8) as u64;
+        let has_min = self.min.is_some();
+        let has_max = self.max.is_some();
+
+        let allow_nan = self.allow_nan.unwrap_or(!has_min && !has_max);
+        let allow_infinity = self.allow_infinity.unwrap_or(!has_min || !has_max);
 
         let mut schema = cbor_map! {
             "type" => "number",
             "exclude_minimum" => self.exclude_min,
             "exclude_maximum" => self.exclude_max,
-            "allow_nan" => self.allow_nan,
-            "allow_infinity" => self.allow_infinity,
+            "allow_nan" => allow_nan,
+            "allow_infinity" => allow_infinity,
             "width" => width
         };
 
@@ -162,7 +167,7 @@ where
         // When generating finite values without explicit bounds, add type
         // bounds to prevent overflow during deserialization (the protocol
         // uses f64, so f32 values near MAX can overflow when round-tripped)
-        if !self.allow_nan && !self.allow_infinity {
+        if !allow_nan && !allow_infinity {
             if self.min.is_none() {
                 map_insert(&mut schema, "minimum", cbor_serialize(&T::min_value()));
             }
@@ -203,7 +208,7 @@ where
         max: None,
         exclude_min: false,
         exclude_max: false,
-        allow_nan: true,
-        allow_infinity: true,
+        allow_nan: None,
+        allow_infinity: None,
     }
 }

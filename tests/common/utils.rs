@@ -63,7 +63,6 @@ where
             );
         })
         .test_cases(self.test_cases)
-        .verbosity(Verbosity::Quiet)
         .run();
     }
 }
@@ -165,7 +164,6 @@ where
                 }
             })
             .test_cases(max_attempts)
-            .verbosity(Verbosity::Quiet)
             .run();
         }));
 

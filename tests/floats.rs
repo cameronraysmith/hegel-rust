@@ -1,119 +1,200 @@
 mod common;
 
 use common::utils::{assert_all_examples, find_any};
-use hegel::gen;
+use hegel::gen::{self, Generate};
+use hegel::{assume, hegel};
 
-#[test]
-fn test_f32_finite() {
-    // Disable nan/infinity to test finite f32 values
-    assert_all_examples(
-        gen::floats::<f32>().allow_nan(false).allow_infinity(false),
-        |&n| n.is_finite(),
-    );
+macro_rules! float_tests {
+    ($t:ty) => {
+        #[test]
+        fn finite() {
+            assert_all_examples(
+                gen::floats::<$t>().allow_nan(false).allow_infinity(false),
+                |&n| n.is_finite(),
+            );
+        }
+
+        #[test]
+        fn with_min() {
+            hegel(|| {
+                let min = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                let n = gen::floats::<$t>().with_min(min).generate();
+                assert!(n >= min, "{n} should be >= {min}");
+            });
+        }
+
+        #[test]
+        fn with_max() {
+            hegel(|| {
+                let max = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                let n = gen::floats::<$t>().with_max(max).generate();
+                assert!(n <= max, "{n} should be <= {max}");
+            });
+        }
+
+        #[test]
+        fn with_min_and_max() {
+            hegel(|| {
+                let a = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                let b = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                let min = a.min(b);
+                let max = a.max(b);
+                let n = gen::floats::<$t>().with_min(min).with_max(max).generate();
+                assert!(n >= min && n <= max, "{n} should be in [{min}, {max}]");
+            });
+        }
+
+        #[test]
+        fn exclude_min() {
+            hegel(|| {
+                let min = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                assume(min.next_up().is_finite());
+                let n = gen::floats::<$t>().with_min(min).exclude_min().generate();
+                assert!(n > min, "{n} should be > {min}");
+            });
+        }
+
+        #[test]
+        fn exclude_max() {
+            hegel(|| {
+                let max = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                assume(max.next_down().is_finite());
+                let n = gen::floats::<$t>().with_max(max).exclude_max().generate();
+                assert!(n < max, "{n} should be < {max}");
+            });
+        }
+
+        #[test]
+        fn exclude_min_and_max() {
+            hegel(|| {
+                let a = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                let b = gen::floats::<$t>()
+                    .allow_nan(false)
+                    .allow_infinity(false)
+                    .generate();
+                let min = a.min(b);
+                let max = a.max(b);
+                assume(min.next_up() < max);
+                let n = gen::floats::<$t>()
+                    .with_min(min)
+                    .with_max(max)
+                    .exclude_min()
+                    .exclude_max()
+                    .generate();
+                assert!(n > min && n < max, "{n} should be in ({min}, {max})");
+            });
+        }
+
+        #[test]
+        fn can_find_nan() {
+            find_any(gen::floats::<$t>(), |n| n.is_nan());
+        }
+
+        #[test]
+        fn can_find_inf() {
+            find_any(gen::floats::<$t>(), |n| n.is_infinite());
+        }
+
+        #[test]
+        fn can_find_positive() {
+            find_any(gen::floats::<$t>(), |&n| n.is_finite() && n > 0.0);
+        }
+
+        #[test]
+        fn can_find_negative() {
+            find_any(gen::floats::<$t>(), |&n| n.is_finite() && n < 0.0);
+        }
+
+        #[test]
+        fn fuzz_floats_bounds() {
+            hegel(|| {
+                let bound_gen =
+                    gen::optional(gen::floats::<$t>().allow_nan(false).allow_infinity(false));
+                let mut low: Option<$t> = bound_gen.generate();
+                let mut high: Option<$t> = bound_gen.generate();
+
+                if let (Some(lo), Some(hi)) = (low, high) {
+                    if lo > hi {
+                        low = Some(hi);
+                        high = Some(lo);
+                    }
+                }
+
+                let exmin = low.is_some() && gen::booleans().generate();
+                let exmax = high.is_some() && gen::booleans().generate();
+
+                if let (Some(lo), Some(hi)) = (low, high) {
+                    let effective_lo = if exmin { lo.next_up() } else { lo };
+                    let effective_hi = if exmax { hi.next_down() } else { hi };
+                    assume(effective_lo <= effective_hi);
+                }
+
+                let mut g = gen::floats::<$t>();
+                if let Some(lo) = low {
+                    g = g.with_min(lo);
+                }
+                if let Some(hi) = high {
+                    g = g.with_max(hi);
+                }
+                if exmin {
+                    g = g.exclude_min();
+                }
+                if exmax {
+                    g = g.exclude_max();
+                }
+
+                let val = g.generate();
+
+                if val.is_finite() {
+                    if let Some(lo) = low {
+                        assert!(val >= lo, "{val} should be >= {lo}");
+                    }
+                    if let Some(hi) = high {
+                        assert!(val <= hi, "{val} should be <= {hi}");
+                    }
+                    if exmin {
+                        if let Some(lo) = low {
+                            assert!(val != lo, "{val} should not equal excluded min {lo}");
+                        }
+                    }
+                    if exmax {
+                        if let Some(hi) = high {
+                            assert!(val != hi, "{val} should not equal excluded max {hi}");
+                        }
+                    }
+                }
+            });
+        }
+    };
 }
 
-#[test]
-fn test_f64_finite() {
-    // Disable nan/infinity to test finite f64 values
-    assert_all_examples(
-        gen::floats::<f64>().allow_nan(false).allow_infinity(false),
-        |&n| n.is_finite(),
-    );
+mod f32_tests {
+    use super::*;
+    float_tests!(f32);
 }
 
-#[test]
-fn test_f64_with_min() {
-    // Bounds require disabling nan/infinity
-    assert_all_examples(
-        gen::floats::<f64>()
-            .with_min(0.0)
-            .allow_nan(false)
-            .allow_infinity(false),
-        |&n| n >= 0.0,
-    );
-}
-
-#[test]
-fn test_f64_with_max() {
-    assert_all_examples(
-        gen::floats::<f64>()
-            .with_max(100.0)
-            .allow_nan(false)
-            .allow_infinity(false),
-        |&n| n <= 100.0,
-    );
-}
-
-#[test]
-fn test_f64_with_min_and_max() {
-    assert_all_examples(
-        gen::floats::<f64>()
-            .with_min(10.0)
-            .with_max(20.0)
-            .allow_nan(false)
-            .allow_infinity(false),
-        |&n| (10.0..=20.0).contains(&n),
-    );
-}
-
-#[test]
-fn test_f64_exclude_min() {
-    assert_all_examples(
-        gen::floats::<f64>()
-            .with_min(0.0)
-            .exclude_min()
-            .allow_nan(false)
-            .allow_infinity(false),
-        |&n| n > 0.0,
-    );
-}
-
-#[test]
-fn test_f64_exclude_max() {
-    assert_all_examples(
-        gen::floats::<f64>()
-            .with_max(100.0)
-            .exclude_max()
-            .allow_nan(false)
-            .allow_infinity(false),
-        |&n| n < 100.0,
-    );
-}
-
-#[test]
-fn test_f64_nan_by_default() {
-    // NaN is allowed by default
-    find_any(gen::floats::<f64>(), |n| n.is_nan());
-}
-
-#[test]
-fn test_f64_infinity_by_default() {
-    // Infinity is allowed by default
-    find_any(gen::floats::<f64>(), |n| n.is_infinite());
-}
-
-#[test]
-fn test_f64_can_find_positive() {
-    find_any(
-        gen::floats::<f64>().allow_nan(false).allow_infinity(false),
-        |&n| n > 0.0,
-    );
-}
-
-#[test]
-fn test_f64_can_find_negative() {
-    find_any(
-        gen::floats::<f64>().allow_nan(false).allow_infinity(false),
-        |&n| n < 0.0,
-    );
-}
-
-#[test]
-fn test_f32_nan_by_default() {
-    find_any(gen::floats::<f32>(), |n| n.is_nan());
-}
-
-#[test]
-fn test_f32_infinity_by_default() {
-    find_any(gen::floats::<f32>(), |n| n.is_infinite());
+mod f64_tests {
+    use super::*;
+    float_tests!(f64);
 }
