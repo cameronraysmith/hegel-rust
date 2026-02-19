@@ -10,8 +10,8 @@ struct Params {
     max_value: Option<f64>,
     exclude_min: bool,
     exclude_max: bool,
-    allow_nan: bool,
-    allow_infinity: bool,
+    allow_nan: Option<bool>,
+    allow_infinity: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -48,8 +48,12 @@ fn main() {
         if params.exclude_max {
             gen = gen.exclude_max();
         }
-        gen = gen.allow_nan(params.allow_nan);
-        gen = gen.allow_infinity(params.allow_infinity);
+        if let Some(allow_nan) = params.allow_nan {
+            gen = gen.allow_nan(allow_nan);
+        }
+        if let Some(allow_infinity) = params.allow_infinity {
+            gen = gen.allow_infinity(allow_infinity);
+        }
 
         let value = gen.generate();
         write(&Metrics {

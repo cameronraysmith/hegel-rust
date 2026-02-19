@@ -4,7 +4,7 @@
 use std::sync::{Arc, Mutex};
 
 use hegel::gen::Generate;
-use hegel::{Hegel, Verbosity};
+use hegel::Hegel;
 
 #[allow(dead_code)]
 pub fn check_can_generate_examples<T, G>(generator: G)
@@ -63,7 +63,6 @@ where
             );
         })
         .test_cases(self.test_cases)
-        .verbosity(Verbosity::Quiet)
         .run();
     }
 }
@@ -165,7 +164,6 @@ where
                 }
             })
             .test_cases(max_attempts)
-            .verbosity(Verbosity::Quiet)
             .run();
         }));
 
