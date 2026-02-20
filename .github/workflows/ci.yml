@@ -51,7 +51,7 @@ jobs:
 
       - name: Install hegel
         run: |
-          pip install git+ssh://git@github.com/antithesishq/hegel.git
+          pip install git+ssh://git@github.com/antithesishq/hegel.git@binary-cbor-bytestrings
 
       - name: Run tests
         run: RUST_BACKTRACE=1 cargo test
@@ -83,7 +83,7 @@ jobs:
 
       - name: Install hegel
         run: |
-          pip install git+ssh://git@github.com/antithesishq/hegel.git
+          pip install git+ssh://git@github.com/antithesishq/hegel.git@binary-cbor-bytestrings
 
       - name: Run tests
         run: RUST_BACKTRACE=1 cargo test --all-features
@@ -128,7 +128,7 @@ jobs:
 
       - name: Install hegel
         run: |
-          pip install git+ssh://git@github.com/antithesishq/hegel.git
+          pip install git+ssh://git@github.com/antithesishq/hegel.git@binary-cbor-bytestrings
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
@@ -156,7 +156,7 @@ jobs:
 
       - name: Install hegel
         run: |
-          pip install git+ssh://git@github.com/antithesishq/hegel.git@main
+          pip install git+ssh://git@github.com/antithesishq/hegel.git@binary-cbor-bytestrings
           pip install pytest
 
       - name: Build conformance binaries
