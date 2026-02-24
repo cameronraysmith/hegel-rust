@@ -222,7 +222,7 @@ pub struct Hegel<F> {
     test_fn: F,
     test_cases: u64,
     verbosity: Verbosity,
-    seed: Value
+    seed: Value,
 }
 
 impl<F> Hegel<F>
@@ -235,7 +235,7 @@ where
             test_fn,
             test_cases: 100,
             verbosity: Verbosity::Normal,
-            seed: Value::Null
+            seed: Value::Null,
         }
     }
 

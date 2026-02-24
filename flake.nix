@@ -34,7 +34,7 @@
         in
         {
           default = pkgs.mkShell {
-            inputsFrom = [ self.packages.${system}.default ];
+            inputsFrom = [ hegel.packages.${system}.default ];
             buildInputs = [
               pkgs.cargo
               pkgs.rustc
