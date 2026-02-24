@@ -222,7 +222,7 @@ pub struct Hegel<F> {
     test_fn: F,
     test_cases: u64,
     verbosity: Verbosity,
-    seed: Option<i64>,
+    seed: Option<u64>,
 }
 
 impl<F> Hegel<F>
@@ -251,7 +251,7 @@ where
         self
     }
 
-    pub fn seed(mut self, seed: Option<i64>) -> Self {
+    pub fn seed(mut self, seed: Option<u64>) -> Self {
         self.seed = seed;
         self
     }
