@@ -1,5 +1,6 @@
-use crate::generators::{TestCaseData, TEST_CASE_DATA};
-use crate::protocol::{Channel, Connection, HANDSHAKE_STRING, SUPPORTED_PROTOCOL_VERSIONS};
+use crate::control::{clear_test_case_data, set_test_case_data, ASSUME_FAIL_STRING};
+use crate::generators::TestCaseData;
+use crate::protocol::{Channel, Connection, HANDSHAKE_STRING};
 use ciborium::Value;
 
 use crate::cbor_helpers::{as_bool, as_text, as_u64, cbor_map, map_get};
@@ -13,6 +14,7 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 use tempfile::TempDir;
 
+const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.1, 0.1);
 static PANIC_HOOK_INIT: Once = Once::new();
 
 thread_local! {
@@ -153,10 +155,9 @@ fn init_panic_hook() {
 /// into the build directory's cache.
 const HEGEL_BINARY_PATH: &str = env!("HEGEL_BINARY_PATH");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verbosity {
     Quiet,
-    #[default]
     Normal,
     Verbose,
     Debug,
@@ -172,8 +173,6 @@ impl Verbosity {
         }
     }
 }
-
-pub(crate) const ASSUME_FAIL_STRING: &str = "__HEGEL_ASSUME_FAIL";
 
 /// Run property-based tests using Hegel with default options.
 ///
@@ -520,7 +519,7 @@ fn run_test_case<F: FnMut()>(
     // Note: we pass the channel directly (not cloned) so generators and mark_complete
     // share the same message ID sequence.
     let data = TestCaseData::new(Arc::clone(connection), test_channel, verbosity, is_final);
-    TEST_CASE_DATA.with(|c| c.set(&data as *const TestCaseData));
+    set_test_case_data(&data);
 
     // Run test in catch_unwind
     let result = catch_unwind(AssertUnwindSafe(test_fn));
@@ -596,8 +595,7 @@ fn run_test_case<F: FnMut()>(
         let _ = data.channel().close();
     }
 
-    // Clear thread-local pointer
-    TEST_CASE_DATA.with(|c| c.set(std::ptr::null()));
+    clear_test_case_data();
 }
 
 /// Extract a message from a panic payload.

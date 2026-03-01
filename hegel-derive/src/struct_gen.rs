@@ -116,7 +116,7 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
             quote! {
                 let #name = {
                     let raw_val = fields.remove(#name_str)
-                        .unwrap_or_else(|| panic!("hegel: missing field '{}' in object", #name_str));
+                        .unwrap_or_else(|| panic!("Missing field '{}' in object", #name_str));
                     #basic_name.parse_raw(raw_val)
                 };
             }
@@ -129,7 +129,7 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
     let default_generator_bounds = default_gen_bounds(&field_types, quote! { 'static });
 
     let schema_ts = object_schema(schema_properties, schema_required);
-    let parse_map_ts = cbor_map_to_hashmap("fields", quote! { raw }, "hegel: expected object from struct schema");
+    let parse_map_ts = cbor_map_to_hashmap("fields", quote! { raw }, "Expected object from struct schema");
 
     let expanded = quote! {
         const _: () = {
