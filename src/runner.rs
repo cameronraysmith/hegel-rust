@@ -1,5 +1,5 @@
 use crate::generators::{TestCaseData, TEST_CASE_DATA};
-use crate::protocol::{Channel, Connection, HANDSHAKE_STRING, SUPPORTED_PROTOCOL_VERSIONS};
+use crate::protocol::{Channel, Connection, HANDSHAKE_STRING};
 use ciborium::Value;
 
 use crate::cbor_helpers::{as_bool, as_text, as_u64, cbor_map, map_get};
@@ -13,6 +13,7 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 use tempfile::TempDir;
 
+const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.1, 0.1);
 static PANIC_HOOK_INIT: Once = Once::new();
 
 thread_local! {
@@ -171,8 +172,6 @@ impl Verbosity {
         }
     }
 }
-
-pub(crate) const ASSUME_FAIL_STRING: &str = "__HEGEL_ASSUME_FAIL";
 
 /// Run property-based tests using Hegel with default options.
 ///

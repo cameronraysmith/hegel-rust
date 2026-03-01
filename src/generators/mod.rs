@@ -253,34 +253,9 @@ impl TestCaseData {
     }
 }
 
-thread_local! {
-    pub(crate) static TEST_CASE_DATA: Cell<*const TestCaseData> = const { Cell::new(std::ptr::null()) };
-}
-
-/// Get a reference to the current test case's TestCaseData.
-///
-/// # Panics
-/// Panics if called outside of a test case (no active TestCaseData).
+// Re-export for macro compatibility ($crate::generators::test_case_data())
 #[doc(hidden)]
-pub fn test_case_data() -> &'static TestCaseData {
-    TEST_CASE_DATA.with(|c| {
-        let ptr = c.get();
-        assert!(
-            !ptr.is_null(),
-            "draw() cannot be called outside of a Hegel test. \
-            Use either #[hegel::test] or hegel::hegel() to define a Hegel test."
-        );
-        unsafe { &*ptr }
-    })
-}
-
-/// Print a note message for the final failing test case.
-pub fn note(message: &str) {
-    let data = test_case_data();
-    if data.is_last_run() {
-        eprintln!("{}", message);
-    }
-}
+pub use crate::control::test_case_data;
 
 // ============================================================================
 // Socket Communication
@@ -305,10 +280,7 @@ impl std::error::Error for StopTestError {}
 pub fn deserialize_value<T: serde::de::DeserializeOwned>(raw: Value) -> T {
     let hv = value::HegelValue::from(raw.clone());
     value::from_hegel_value(hv).unwrap_or_else(|e| {
-        panic!(
-            "Failed to deserialize value: {}\nValue: {:?}",
-            e, raw
-        );
+        panic!("Failed to deserialize value: {}\nValue: {:?}", e, raw);
     })
 }
 
