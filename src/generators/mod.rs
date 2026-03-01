@@ -306,7 +306,7 @@ pub fn deserialize_value<T: serde::de::DeserializeOwned>(raw: Value) -> T {
     let hv = value::HegelValue::from(raw.clone());
     value::from_hegel_value(hv).unwrap_or_else(|e| {
         panic!(
-            "hegel: failed to deserialize value: {}\nValue: {:?}",
+            "Failed to deserialize value: {}\nValue: {:?}",
             e, raw
         );
     })

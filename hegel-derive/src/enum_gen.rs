@@ -403,21 +403,21 @@ pub(crate) fn derive_enum_generate(input: &DeriveInput, data: &syn::DataEnum) ->
                         // raw is a tagged tuple [tag, value]
                         let arr = match raw {
                             hegel::ciborium::Value::Array(arr) => arr,
-                            _ => panic!("hegel: expected tagged tuple array for enum, got {:?}", raw),
+                            _ => panic!("Expected tagged tuple array for enum, got {:?}", raw),
                         };
                         let tag = match &arr[0] {
                             hegel::ciborium::Value::Integer(i) => {
                                 let val: i128 = (*i).into();
                                 val as usize
                             }
-                            _ => panic!("hegel: expected integer tag, got {:?}", arr[0]),
+                            _ => panic!("Expected integer tag, got {:?}", arr[0]),
                         };
                         let value = arr.into_iter().nth(1).unwrap();
 
                         match tag {
                             #(#parse_raw_unit_arms,)*
                             #(#parse_raw_data_arms,)*
-                            _ => panic!("hegel: unknown variant tag: {}", tag),
+                            _ => panic!("Unknown variant tag: {}", tag),
                         }
                     }))
                 }
@@ -575,12 +575,12 @@ fn generate_variant_generator(
             let parse_outer_ts = cbor_map_to_hashmap(
                 "outer_map",
                 quote! { raw },
-                "hegel: expected object for enum variant",
+                "Expected object for enum variant",
             );
             let parse_inner_ts = cbor_map_to_hashmap(
                 "inner_map",
                 quote! { inner_raw },
-                "hegel: expected inner object for variant fields",
+                "Expected inner object for variant fields",
             );
 
             // parse closure field extractions
@@ -592,7 +592,7 @@ fn generate_variant_generator(
                     quote! {
                         let #name = {
                             let raw_val = inner_map.remove(#name_str)
-                                .unwrap_or_else(|| panic!("hegel: missing field '{}'", #name_str));
+                                .unwrap_or_else(|| panic!("Missing field '{}'", #name_str));
                             #basic_name.parse_raw(raw_val)
                         };
                     }
@@ -654,7 +654,7 @@ fn generate_variant_generator(
                             #parse_outer_ts
 
                             let inner_raw = outer_map.remove(variant_name_str)
-                                .unwrap_or_else(|| panic!("hegel: missing variant key '{}'", variant_name_str));
+                                .unwrap_or_else(|| panic!("Missing variant key '{}'", variant_name_str));
 
                             #parse_inner_ts
 
@@ -678,7 +678,7 @@ fn generate_variant_generator(
             let parse_outer_ts = cbor_map_to_hashmap(
                 "outer_map",
                 quote! { raw },
-                "hegel: expected object for enum variant",
+                "Expected object for enum variant",
             );
 
             quote! {
@@ -742,7 +742,7 @@ fn generate_variant_generator(
                             #parse_outer_ts
 
                             let field_raw = outer_map.remove(variant_name_str)
-                                .unwrap_or_else(|| panic!("hegel: missing variant key '{}'", variant_name_str));
+                                .unwrap_or_else(|| panic!("Missing variant key '{}'", variant_name_str));
 
                             #enum_name::#variant_name(value_basic.parse_raw(field_raw))
                         }))
@@ -825,7 +825,7 @@ fn generate_variant_generator(
                     let basic_name = format_ident!("basic{}", idx);
                     quote! {
                         let #idx = #basic_name.parse_raw(
-                            iter.next().unwrap_or_else(|| panic!("hegel: tuple variant missing element"))
+                            iter.next().unwrap_or_else(|| panic!("Tuple variant missing element"))
                         );
                     }
                 })
@@ -841,7 +841,7 @@ fn generate_variant_generator(
             let parse_outer_ts = cbor_map_to_hashmap(
                 "outer_map",
                 quote! { raw },
-                "hegel: expected object for enum variant",
+                "Expected object for enum variant",
             );
 
             quote! {
@@ -897,11 +897,11 @@ fn generate_variant_generator(
                             #parse_outer_ts
 
                             let tuple_raw = outer_map.remove(variant_name_str)
-                                .unwrap_or_else(|| panic!("hegel: missing variant key '{}'", variant_name_str));
+                                .unwrap_or_else(|| panic!("Missing variant key '{}'", variant_name_str));
 
                             let arr = match tuple_raw {
                                 hegel::ciborium::Value::Array(arr) => arr,
-                                _ => panic!("hegel: expected array for tuple variant, got {:?}", tuple_raw),
+                                _ => panic!("Expected array for tuple variant, got {:?}", tuple_raw),
                             };
                             let mut iter = arr.into_iter();
 
