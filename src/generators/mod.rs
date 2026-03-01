@@ -1,5 +1,7 @@
 mod arrays;
+mod basic;
 mod binary;
+mod collection;
 mod collections;
 mod combinators;
 mod compose;
@@ -16,7 +18,8 @@ mod tuples;
 mod value;
 
 // public api
-pub use self::basic::BasicGenerator;
+pub use basic::BasicGenerator;
+pub use collection::Collection;
 pub use arrays::arrays;
 pub use binary::binary;
 pub use collections::{hashmaps, hashsets, vecs, HashMapGenerator};
@@ -44,7 +47,7 @@ pub(crate) use strings::TextGenerator;
 
 use ciborium::Value;
 
-use crate::cbor_utils::{cbor_map, map_insert};
+use crate::cbor_utils::cbor_map;
 
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
@@ -160,7 +163,7 @@ impl TestCaseData {
 
     /// Send a request and receive a response via the channel.
     /// Returns Err(StopTestError) if the server sends an overflow error.
-    fn send_request(&self, command: &str, payload: &Value) -> Result<Value, StopTestError> {
+    pub(super) fn send_request(&self, command: &str, payload: &Value) -> Result<Value, StopTestError> {
         let debug = *PROTOCOL_DEBUG || self.verbosity() == Verbosity::Debug;
 
         // Build the request message by merging command into the payload map
@@ -284,133 +287,6 @@ pub fn deserialize_value<T: serde::de::DeserializeOwned>(raw: Value) -> T {
     })
 }
 
-// ============================================================================
-// Server-Managed Collections
-// ============================================================================
-
-/// A server-managed collection for controlling element generation.
-///
-/// Collections use the server's sizing logic (Hypothesis's `many` utility)
-/// to determine how many elements to generate, rather than picking a fixed
-/// size upfront. This produces better shrinking behavior.
-///
-/// The server-side `many` object is created lazily on the first call to
-/// [`more()`](Collection::more).
-///
-/// # Example
-///
-/// ```ignore
-/// use hegel::generators::Collection;
-///
-/// let data = hegel::generators::test_case_data();
-/// let mut coll = Collection::new("my_list", 0, None);
-/// let mut result = Vec::new();
-/// while coll.more(data) {
-///     result.push(generators::integers::<i32>().do_draw(data));
-/// }
-/// ```
-pub struct Collection {
-    base_name: String,
-    min_size: usize,
-    max_size: Option<usize>,
-    server_name: Option<String>,
-    finished: bool,
-}
-
-impl Collection {
-    /// Create a new collection handle.
-    ///
-    /// The server-side `many` object is not created until the first call
-    /// to [`more()`](Collection::more), matching the Python SDK's lazy
-    /// initialization behavior.
-    pub fn new(name: &str, min_size: usize, max_size: Option<usize>) -> Self {
-        Collection {
-            base_name: name.to_string(),
-            min_size,
-            max_size,
-            server_name: None,
-            finished: false,
-        }
-    }
-
-    /// Ensure the server-side collection is initialized, returning the server name.
-    fn ensure_initialized(&mut self, data: &TestCaseData) -> &str {
-        if self.server_name.is_none() {
-            let mut payload = cbor_map! {
-                "name" => self.base_name.as_str(),
-                "min_size" => self.min_size as u64
-            };
-            if let Some(max) = self.max_size {
-                map_insert(&mut payload, "max_size", Value::from(max as u64));
-            }
-            let response = match data.send_request("new_collection", &payload) {
-                Ok(v) => v,
-                Err(StopTestError) => {
-                    crate::assume(false);
-                    unreachable!()
-                }
-            };
-            let name = match response {
-                Value::Text(s) => s,
-                _ => panic!(
-                    "Expected text response from new_collection, got {:?}",
-                    response
-                ),
-            };
-            self.server_name = Some(name);
-        }
-        self.server_name.as_ref().unwrap()
-    }
-
-    /// Check if more elements should be generated.
-    ///
-    /// On the first call, this lazily creates the server-side collection.
-    /// Returns `false` when the collection has reached its target size.
-    pub fn more(&mut self, data: &TestCaseData) -> bool {
-        if self.finished {
-            return false;
-        }
-        let server_name = self.ensure_initialized(data).to_string();
-        let response = match data.send_request(
-            "collection_more",
-            &cbor_map! { "collection" => server_name.as_str() },
-        ) {
-            Ok(v) => v,
-            Err(StopTestError) => {
-                self.finished = true;
-                crate::assume(false);
-                unreachable!()
-            }
-        };
-        let result = match response {
-            Value::Bool(b) => b,
-            _ => panic!("Expected bool from collection_more, got {:?}", response),
-        };
-        if !result {
-            self.finished = true;
-        }
-        result
-    }
-
-    /// Reject the last element (don't count it towards the size budget).
-    ///
-    /// This is useful for unique collections where a generated element
-    /// turned out to be a duplicate.
-    pub fn reject(&mut self, data: &TestCaseData, why: Option<&str>) {
-        if self.finished {
-            return;
-        }
-        let server_name = self.ensure_initialized(data).to_string();
-        let mut payload = cbor_map! {
-            "collection" => server_name.as_str()
-        };
-        if let Some(reason) = why {
-            map_insert(&mut payload, "why", Value::Text(reason.to_string()));
-        }
-        let _ = data.send_request("collection_reject", &payload);
-    }
-}
-
 /// Label constants for spans.
 /// These help Hypothesis understand the structure of generated data.
 pub mod labels {
@@ -430,73 +306,6 @@ pub mod labels {
     pub const MAPPED: u64 = 13;
     pub const SAMPLED_FROM: u64 = 14;
     pub const ENUM_VARIANT: u64 = 15;
-}
-
-// ============================================================================
-// BasicGenerator
-// ============================================================================
-
-/// A basic generator bundles a schema with a parse function.
-///
-/// This is the key abstraction for schema-based generation. Generators that
-/// can be expressed as a single schema implement `as_basic()` to return one.
-/// Combinators like `map()` compose BasicGenerators by chaining parse functions
-/// while preserving the schema.
-pub mod basic {
-    use super::TestCaseData;
-    use ciborium::Value;
-    use std::marker::PhantomData;
-
-    /// A bundled schema + parse function for schema-based generation.
-    ///
-    /// The lifetime `'a` ties the BasicGenerator to the generator that created it.
-    /// `T: 'a` is required because the parse closure returns `T`.
-    pub struct BasicGenerator<'a, T> {
-        schema: Value,
-        parse: Box<dyn Fn(Value) -> T + Send + Sync + 'a>,
-        _phantom: PhantomData<fn() -> T>,
-    }
-
-    impl<'a, T: 'a> BasicGenerator<'a, T> {
-        /// Create a new BasicGenerator from a schema and parse function.
-        pub fn new<F: Fn(Value) -> T + Send + Sync + 'a>(schema: Value, f: F) -> Self {
-            BasicGenerator {
-                schema,
-                parse: Box::new(f),
-                _phantom: PhantomData,
-            }
-        }
-
-        /// Get a reference to the schema.
-        pub fn schema(&self) -> &Value {
-            &self.schema
-        }
-
-        /// Parse a raw CBOR value into the generated type.
-        pub fn parse_raw(&self, raw: Value) -> T {
-            (self.parse)(raw)
-        }
-
-        /// Generate a value by sending the schema to the server and parsing the response.
-        ///
-        /// This is a convenience for `self.parse_raw(data.generate_raw(self.schema()))`.
-        pub fn do_draw(&self, data: &TestCaseData) -> T {
-            self.parse_raw(data.generate_raw(self.schema()))
-        }
-
-        /// Transform the output type by composing a function with the parse.
-        ///
-        /// The resulting BasicGenerator shares the same schema but applies `f`
-        /// after parsing.
-        pub fn map<U: 'a, F: Fn(T) -> U + Send + Sync + 'a>(self, f: F) -> BasicGenerator<'a, U> {
-            let old_parse = self.parse;
-            BasicGenerator {
-                schema: self.schema,
-                parse: Box::new(move |raw| f(old_parse(raw))),
-                _phantom: PhantomData,
-            }
-        }
-    }
 }
 
 // ============================================================================

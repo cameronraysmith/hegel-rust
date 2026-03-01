@@ -54,9 +54,9 @@ where
             // Compositional fallback: use server-managed collection sizing
             data.span_group(labels::LIST, || {
                 let mut collection =
-                    Collection::new("composite_list", self.min_size, self.max_size);
+                    Collection::new(data, "composite_list", self.min_size, self.max_size);
                 let mut result = Vec::new();
-                while collection.more(data) {
+                while collection.more() {
                     result.push(self.elements.do_draw(data));
                 }
                 result
