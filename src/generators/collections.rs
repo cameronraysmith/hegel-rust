@@ -6,19 +6,6 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// Extract an array from a Value, handling both plain Arrays and CBOR Tag(258, Array)
-/// which is the standard CBOR tag for sets.
-fn extract_array(raw: Value) -> Vec<Value> {
-    match raw {
-        Value::Array(arr) => arr,
-        Value::Tag(258, inner) => match *inner {
-            Value::Array(arr) => arr,
-            other => panic!("Expected array inside set tag, got {:?}", other),
-        },
-        other => panic!("Expected array or tagged set, got {:?}", other),
-    }
-}
-
 pub struct VecGenerator<G, T> {
     pub(crate) elements: G,
     pub(crate) min_size: usize,
@@ -69,10 +56,9 @@ where
         let elem_basic = self.elements.as_basic()?;
         let elem_schema = elem_basic.schema().clone();
 
-        let schema_type = if self.unique { "set" } else { "list" };
-
         let mut schema = cbor_map! {
-            "type" => schema_type,
+            "type" => "list",
+            "unique" => self.unique,
             "elements" => elem_schema,
             "min_size" => self.min_size as u64
         };
@@ -82,7 +68,9 @@ where
         }
 
         Some(BasicGenerator::new(schema, move |raw| {
-            let arr = extract_array(raw);
+            let Value::Array(arr) = raw else {
+                panic!("Expected array, got {:?}", raw)
+            };
             arr.into_iter().map(|v| elem_basic.parse_raw(v)).collect()
         }))
     }
@@ -153,7 +141,8 @@ where
         let elem_schema = elem_basic.schema().clone();
 
         let mut schema = cbor_map! {
-            "type" => "set",
+            "type" => "list",
+            "unique" => true,
             "elements" => elem_schema,
             "min_size" => self.min_size as u64
         };
@@ -163,7 +152,9 @@ where
         }
 
         Some(BasicGenerator::new(schema, move |raw| {
-            let arr = extract_array(raw);
+            let Value::Array(arr) = raw else {
+                panic!("Expected array, got {:?}", raw)
+            };
             arr.into_iter().map(|v| elem_basic.parse_raw(v)).collect()
         }))
     }
