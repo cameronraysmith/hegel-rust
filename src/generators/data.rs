@@ -153,7 +153,6 @@ impl TestCaseData {
     pub fn generate_from_schema<T: serde::de::DeserializeOwned>(&self, schema: &Value) -> T {
         deserialize_value(self.generate_raw(schema))
     }
-
 }
 
 /// Custom error for StopTest (overflow) condition.

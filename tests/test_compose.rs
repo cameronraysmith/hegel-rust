@@ -26,8 +26,10 @@ fn test_compose_dependent_generation() {
 #[hegel::test]
 fn test_compose_with_map() {
     let value = hegel::draw(
-        &hegel::compose!(|draw| { draw(&generators::integers::<i32>().min_value(0).max_value(10)) })
-            .map(|n| n * 2),
+        &hegel::compose!(|draw| {
+            draw(&generators::integers::<i32>().min_value(0).max_value(10))
+        })
+        .map(|n| n * 2),
     );
     assert!(value % 2 == 0);
     assert!((0..=20).contains(&value));
@@ -36,8 +38,10 @@ fn test_compose_with_map() {
 #[hegel::test]
 fn test_compose_with_filter() {
     let value = hegel::draw(
-        &hegel::compose!(|draw| { draw(&generators::integers::<i32>().min_value(0).max_value(100)) })
-            .filter(|n| n % 2 == 0),
+        &hegel::compose!(|draw| {
+            draw(&generators::integers::<i32>().min_value(0).max_value(100))
+        })
+        .filter(|n| n % 2 == 0),
     );
     assert!(value % 2 == 0);
 }
