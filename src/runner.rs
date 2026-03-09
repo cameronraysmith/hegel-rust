@@ -15,7 +15,6 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.1, 0.3);
-const HEGEL_BINARY_PATH: &str = env!("HEGEL_BINARY_PATH");
 static PANIC_HOOK_INIT: Once = Once::new();
 
 thread_local! {
@@ -148,6 +147,82 @@ fn init_panic_hook() {
     });
 }
 
+/// The hegel-core commit this SDK is designed to work with.
+const HEGEL_VERSION: &str = "6e327df2dd42553de12ace94cfbddfbbd9e4bf50";
+
+const HEGEL_CMD_ENV: &str = "HEGEL_CMD";
+const HEGEL_DIR: &str = ".hegel";
+
+fn hegel_pip_spec() -> String {
+    format!("hegel @ git+ssh://git@github.com/antithesishq/hegel-core.git@{HEGEL_VERSION}")
+}
+
+fn ensure_hegel_installed() -> Result<String, String> {
+    let venv_dir = format!("{HEGEL_DIR}/venv");
+    let version_file = format!("{venv_dir}/hegel-version");
+    let hegel_bin = format!("{venv_dir}/bin/hegel");
+
+    // Check cached version
+    if let Ok(cached) = std::fs::read_to_string(&version_file) {
+        if cached.trim() == HEGEL_VERSION && std::path::Path::new(&hegel_bin).is_file() {
+            return Ok(hegel_bin);
+        }
+    }
+
+    std::fs::create_dir_all(HEGEL_DIR).map_err(|e| format!("Failed to create .hegel: {e}"))?;
+
+    eprintln!(
+        "Installing hegel ({}) into {venv_dir}...",
+        &HEGEL_VERSION[..12]
+    );
+
+    let status = std::process::Command::new("uv")
+        .args(["venv", "--clear", &venv_dir])
+        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .status()
+        .map_err(|e| format!("Failed to run uv venv: {e}"))?;
+    if !status.success() {
+        return Err("uv venv failed".to_string());
+    }
+
+    let python_path = format!("{venv_dir}/bin/python");
+    let status = std::process::Command::new("uv")
+        .args([
+            "pip",
+            "install",
+            "--python",
+            &python_path,
+            &hegel_pip_spec(),
+        ])
+        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .status()
+        .map_err(|e| format!("Failed to run uv pip install: {e}"))?;
+    if !status.success() {
+        return Err(format!(
+            "Failed to install hegel (version: {HEGEL_VERSION}). \
+             Set {HEGEL_CMD_ENV} to a hegel binary path to skip installation."
+        ));
+    }
+
+    if !std::path::Path::new(&hegel_bin).is_file() {
+        return Err(format!("hegel not found at {hegel_bin} after installation"));
+    }
+
+    std::fs::write(&version_file, HEGEL_VERSION)
+        .map_err(|e| format!("Failed to write version file: {e}"))?;
+
+    Ok(hegel_bin)
+}
+
+fn find_hegel() -> String {
+    if let Ok(override_path) = std::env::var(HEGEL_CMD_ENV) {
+        return override_path;
+    }
+    ensure_hegel_installed().unwrap_or_else(|e| panic!("Failed to ensure hegel: {e}"))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verbosity {
     Quiet,
@@ -256,7 +331,8 @@ where
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let socket_path = temp_dir.path().join("hegel.sock");
 
-        let mut cmd = Command::new(HEGEL_BINARY_PATH);
+        let hegel_binary_path = find_hegel();
+        let mut cmd = Command::new(&hegel_binary_path);
         cmd.arg(&socket_path)
             .arg("--verbosity")
             .arg(self.verbosity.as_str());
@@ -270,7 +346,7 @@ where
         #[allow(clippy::expect_fun_call)]
         let mut child = cmd
             .spawn()
-            .expect(format!("Failed to spawn hegel at path {}", HEGEL_BINARY_PATH).as_str());
+            .expect(format!("Failed to spawn hegel at path {}", hegel_binary_path).as_str());
 
         init_panic_hook();
 

@@ -100,6 +100,24 @@ def check(base_ref: str) -> None:
     parse_release_file(release_file)
 
 
+def pin_hegel_version(runner_rs: Path) -> None:
+    """Pin HEGEL_VERSION to the current HEAD of hegel-core main."""
+    sha = subprocess.check_output(
+        ["gh", "api", "repos/antithesishq/hegel-core/commits/main", "--jq", ".sha"],
+        text=True,
+    ).strip()
+
+    text = runner_rs.read_text()
+    new_text = re.sub(
+        r'^const HEGEL_VERSION: &str = ".*"',
+        f'const HEGEL_VERSION: &str = "{sha}"',
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    runner_rs.write_text(new_text)
+
+
 def release() -> None:
     release_file = ROOT / "RELEASE.md"
     assert release_file.exists()
@@ -114,6 +132,9 @@ def release() -> None:
     set_version(ROOT / "Cargo.toml", new_version)
     set_version(ROOT / "hegel-derive" / "Cargo.toml", new_version)
 
+    runner_rs = ROOT / "src" / "runner.rs"
+    pin_hegel_version(runner_rs)
+
     # regenerate lockfile after version bump
     subprocess.run(["cargo", "generate-lockfile"], check=True, cwd=ROOT)
 
@@ -126,6 +147,7 @@ def release() -> None:
         "Cargo.toml",
         "Cargo.lock",
         "hegel-derive/Cargo.toml",
+        "src/runner.rs",
         "CHANGELOG.md",
         cwd=ROOT,
     )
