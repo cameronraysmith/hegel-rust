@@ -24,14 +24,14 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_integers() {
-    let n = generators::integers::<i64>().generate();
+    let n = hegel::draw(&generators::integers::<i64>());
     println!("called with {n}");
     assert_eq!(n, n); // integers are always equal to themselves
 }
 ```
 
 `#[hegel::test]` runs your test many times with different generated inputs.
-Inside the body, call `.generate()` on a generator to produce a value. If any
+Inside the body, call `hegel::draw(&generator)` to produce a value. If any
 assertion fails, Hegel shrinks the inputs to a minimal counterexample.
 
 By default Hegel runs **100 test cases**. Use the builder API to override this:
@@ -41,7 +41,7 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test(test_cases = 500)]
 fn test_integers_many() {
-    let n = generators::integers::<i64>().generate();
+    let n = hegel::draw(&generators::integers::<i64>());
     assert_eq!(n, n);
 }
 ```
@@ -55,9 +55,8 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_bounded_integers() {
-    let n = generators::integers::<i32>()
-        .with_min(0).with_max(200)
-        .generate();
+    let n = hegel::draw(&generators::integers::<i32>()
+        .with_min(0).with_max(200));
     assert!(n < 50); // this will fail!
 }
 ```
@@ -67,15 +66,15 @@ When the test fails, Hegel finds the smallest counterexample — in this case,
 
 ## Generating multiple values
 
-Call `.generate()` multiple times to produce multiple values in a single test:
+Call `hegel::draw()` multiple times to produce multiple values in a single test:
 
 ```rust
 use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_multiple_values() {
-    let n = generators::integers::<i64>().generate();
-    let s = generators::text().generate();
+    let n = hegel::draw(&generators::integers::<i64>());
+    let s = hegel::draw(&generators::text());
     assert_eq!(n, n);
     assert!(s.len() >= 0);
 }
@@ -93,9 +92,8 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_even_integers() {
-    let n = generators::integers::<i64>()
-        .filter(|x| x % 2 == 0)
-        .generate();
+    let n = hegel::draw(&generators::integers::<i64>()
+        .filter(|x| x % 2 == 0));
     assert!(n % 2 == 0);
 }
 ```
@@ -108,8 +106,8 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_division() {
-    let n1 = generators::integers::<i64>().generate();
-    let n2 = generators::integers::<i64>().generate();
+    let n1 = hegel::draw(&generators::integers::<i64>());
+    let n2 = hegel::draw(&generators::integers::<i64>());
     hegel::assume(n2 != 0);
     // n2 is guaranteed non-zero here
     let q = n1 / n2;
@@ -130,10 +128,9 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_string_integers() {
-    let s = generators::integers::<i32>()
+    let s = hegel::draw(&generators::integers::<i32>()
         .with_min(0).with_max(100)
-        .map(|n| n.to_string())
-        .generate();
+        .map(|n| n.to_string()));
     assert!(s.parse::<i32>().unwrap() >= 0);
 }
 ```
@@ -148,15 +145,12 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_list_with_valid_index() {
-    let n = generators::integers::<usize>()
-        .with_min(1).with_max(10)
-        .generate();
-    let lst: Vec<i32> = generators::vecs(generators::integers())
-        .with_min_size(n).with_max_size(n)
-        .generate();
-    let index = generators::integers::<usize>()
-        .with_min(0).with_max(n - 1)
-        .generate();
+    let n = hegel::draw(&generators::integers::<usize>()
+        .with_min(1).with_max(10));
+    let lst: Vec<i32> = hegel::draw(&generators::vecs(generators::integers())
+        .with_min_size(n).with_max_size(n));
+    let index = hegel::draw(&generators::integers::<usize>()
+        .with_min(0).with_max(n - 1));
     assert!(index < lst.len());
 }
 ```
@@ -169,13 +163,13 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_flatmap_example() {
-    let (n, lst) = generators::integers::<usize>()
+    let (n, lst) = hegel::draw(&generators::integers::<usize>()
         .with_min(1).with_max(5)
         .flat_map(|n| {
             generators::vecs(generators::integers::<i32>())
                 .with_min_size(n).with_max_size(n)
                 .map(move |lst| (n, lst))
-        }).generate();
+        }));
     assert_eq!(lst.len(), n);
 }
 ```
@@ -189,11 +183,11 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn my_test() {
-    let b: bool = generators::booleans().generate();
-    let n: i32 = generators::integers::<i32>().generate();    // also i8-i64, u8-u64, usize
-    let f: f64 = generators::floats::<f64>().generate();      // also f32
-    let s: String = generators::text().generate();
-    let bytes: Vec<u8> = generators::binary().generate();
+    let b: bool = hegel::draw(&generators::booleans());
+    let n: i32 = hegel::draw(&generators::integers::<i32>());    // also i8-i64, u8-u64, usize
+    let f: f64 = hegel::draw(&generators::floats::<f64>());      // also f32
+    let s: String = hegel::draw(&generators::text());
+    let bytes: Vec<u8> = hegel::draw(&generators::binary());
 }
 ```
 
@@ -208,9 +202,8 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn my_test() {
-    let always_42 = generators::just(42).generate();
-    let suit = generators::sampled_from(vec!["hearts", "diamonds", "clubs", "spades"])
-        .generate();
+    let always_42 = hegel::draw(&generators::just(42));
+    let suit = hegel::draw(&generators::sampled_from(vec!["hearts", "diamonds", "clubs", "spades"]));
 }
 ```
 
@@ -222,13 +215,13 @@ use std::collections::{HashSet, HashMap};
 
 #[hegel::test]
 fn my_test() {
-    let v: Vec<i32> = generators::vecs(generators::integers())
-        .with_min_size(1).with_max_size(10).generate();
-    let s: HashSet<i32> = generators::hashsets(generators::integers())
-        .with_max_size(5).generate();
-    let m: HashMap<String, i32> = generators::hashmaps(
+    let v: Vec<i32> = hegel::draw(&generators::vecs(generators::integers())
+        .with_min_size(1).with_max_size(10));
+    let s: HashSet<i32> = hegel::draw(&generators::hashsets(generators::integers())
+        .with_max_size(5));
+    let m: HashMap<String, i32> = hegel::draw(&generators::hashmaps(
         generators::text().with_max_size(10), generators::integers(),
-    ).with_max_size(5).generate();
+    ).with_max_size(5));
 }
 ```
 
@@ -239,20 +232,20 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn my_test() {
-    let pair: (i32, String) = generators::tuples2(
+    let pair: (i32, String) = hegel::draw(&generators::tuples2(
         generators::integers(), generators::text(),
-    ).generate();
-    let triple: (bool, i32, f64) = generators::tuples3(
+    ));
+    let triple: (bool, i32, f64) = hegel::draw(&generators::tuples3(
         generators::booleans(), generators::integers(), generators::floats(),
-    ).generate();
-    let maybe: Option<i32> = generators::optional(generators::integers()).generate();
+    ));
+    let maybe: Option<i32> = hegel::draw(&generators::optional(generators::integers()));
 
     // Choose between generators (type-erased via one_of! macro)
-    let n: i32 = hegel::one_of!(
+    let n: i32 = hegel::draw(&hegel::one_of!(
         generators::just(0),
         generators::integers::<i32>().with_min(1).with_max(100),
         generators::integers::<i32>().with_min(-100).with_max(-1),
-    ).generate();
+    ));
 }
 ```
 
@@ -263,15 +256,15 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn my_test() {
-    let email: String = generators::emails().generate();
-    let url: String = generators::urls().generate();
-    let domain: String = generators::domains().with_max_length(50).generate();
-    let date: String = generators::dates().generate();     // YYYY-MM-DD
-    let time: String = generators::times().generate();      // HH:MM:SS
-    let dt: String = generators::datetimes().generate();
-    let ipv4: String = generators::ip_addresses().v4().generate();
-    let ipv6: String = generators::ip_addresses().v6().generate();
-    let pattern: String = generators::from_regex(r"[A-Z]{2}-[0-9]{4}").fullmatch().generate();
+    let email: String = hegel::draw(&generators::emails());
+    let url: String = hegel::draw(&generators::urls());
+    let domain: String = hegel::draw(&generators::domains().with_max_length(50));
+    let date: String = hegel::draw(&generators::dates());     // YYYY-MM-DD
+    let time: String = hegel::draw(&generators::times());      // HH:MM:SS
+    let dt: String = hegel::draw(&generators::datetimes());
+    let ipv4: String = hegel::draw(&generators::ip_addresses().v4());
+    let ipv6: String = hegel::draw(&generators::ip_addresses().v6());
+    let pattern: String = hegel::draw(&generators::from_regex(r"[A-Z]{2}-[0-9]{4}").fullmatch());
 }
 ```
 
@@ -289,10 +282,9 @@ struct User { name: String, age: u32, active: bool }
 
 #[hegel::test]
 fn test_derived_user() {
-    let user: User = UserGenerator::new()
+    let user: User = hegel::draw(&UserGenerator::new()
         .with_age(generators::integers().with_min(18).with_max(120))
-        .with_name(generators::from_regex(r"[A-Z][a-z]{2,15}").fullmatch())
-        .generate();
+        .with_name(generators::from_regex(r"[A-Z][a-z]{2,15}").fullmatch()));
     assert!(user.age >= 18 && user.age <= 120);
 }
 ```
@@ -305,7 +297,7 @@ use hegel::generators::{self, Generate};
 
 struct Point { x: f64, y: f64 }
 derive_generator!(Point { x: f64, y: f64 });
-// Now PointGenerator::new().with_x(...).with_y(...).generate() works
+// Now hegel::draw(&PointGenerator::new().with_x(...).with_y(...)) works
 ```
 
 ## Debugging with note()
@@ -318,8 +310,8 @@ use hegel::generators::{self, Generate};
 
 #[hegel::test]
 fn test_with_notes() {
-    let x = generators::integers::<i64>().generate();
-    let y = generators::integers::<i64>().generate();
+    let x = hegel::draw(&generators::integers::<i64>());
+    let y = hegel::draw(&generators::integers::<i64>());
     hegel::note(&format!("trying x={x}, y={y}"));
     assert_eq!(x + y, y + x); // commutativity -- always true
 }
