@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5 - 2026-03-11
+
+Set `HEGEL_SERVER_COMMAND` in nix install.
+
 ## 0.2.4 - 2026-03-11
 
 Fixes a version mismatch with the hegel-core dependency that was causing the entire library to be broken.
