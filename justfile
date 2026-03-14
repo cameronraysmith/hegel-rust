@@ -50,5 +50,5 @@ build-conformance:
     cargo build --release --manifest-path tests/conformance/rust/Cargo.toml
 
 conformance: build-conformance
-    uv run --with "hegel @ git+https://github.com/hegeldev/hegel-core" \
+    uv run --with hegel-core \
         --with pytest --with hypothesis pytest tests/conformance/test_conformance.py
