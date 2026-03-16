@@ -31,7 +31,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hegel = {{ path = "{}" }}
+hegeltest = {{ path = "{}" }}
 "#,
             hegel_path.display()
         );
