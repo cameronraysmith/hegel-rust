@@ -12,7 +12,7 @@ pub struct TestLocation {
 pub(crate) fn is_running_in_antithesis() -> bool {
     match std::env::var("ANTITHESIS_OUTPUT_DIR") {
         Ok(output_dir) => {
-            assert_eq!(Path::new(&output_dir).exists(), true);
+            assert!(Path::new(&output_dir).exists());
             true
         }
         Err(_) => false,
