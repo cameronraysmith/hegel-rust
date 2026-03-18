@@ -260,10 +260,10 @@ pub enum HealthCheck {
     FilterTooMuch,
     /// Test execution is too slow.
     TooSlow,
-    /// Generated data is too large.
-    DataTooLarge,
+    /// Generated test cases are too large.
+    TestCasesTooLarge,
     /// The smallest natural input is very large.
-    LargeBaseExample,
+    LargeInitialTestCase,
 }
 
 impl HealthCheck {
@@ -283,8 +283,8 @@ impl HealthCheck {
         [
             HealthCheck::FilterTooMuch,
             HealthCheck::TooSlow,
-            HealthCheck::DataTooLarge,
-            HealthCheck::LargeBaseExample,
+            HealthCheck::TestCasesTooLarge,
+            HealthCheck::LargeInitialTestCase,
         ]
     }
 
@@ -292,8 +292,8 @@ impl HealthCheck {
         match self {
             HealthCheck::FilterTooMuch => "filter_too_much",
             HealthCheck::TooSlow => "too_slow",
-            HealthCheck::DataTooLarge => "data_too_large",
-            HealthCheck::LargeBaseExample => "large_base_example",
+            HealthCheck::TestCasesTooLarge => "test_cases_too_large",
+            HealthCheck::LargeInitialTestCase => "large_initial_test_case",
         }
     }
 }

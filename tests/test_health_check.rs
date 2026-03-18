@@ -22,7 +22,7 @@ fn test_suppress_all(tc: TestCase) {
 
 #[hegel::test(
     test_cases = 15,
-    suppress_health_check = [HealthCheck::DataTooLarge, HealthCheck::TooSlow, HealthCheck::LargeBaseExample]
+    suppress_health_check = [HealthCheck::TestCasesTooLarge, HealthCheck::TooSlow, HealthCheck::LargeInitialTestCase]
 )]
 fn test_data_too_large_suppressed(tc: TestCase) {
     let do_big: bool = tc.draw(generators::booleans());
@@ -35,7 +35,7 @@ fn test_data_too_large_suppressed(tc: TestCase) {
 
 #[hegel::test(
     test_cases = 15,
-    suppress_health_check = [HealthCheck::LargeBaseExample, HealthCheck::DataTooLarge, HealthCheck::TooSlow]
+    suppress_health_check = [HealthCheck::LargeInitialTestCase, HealthCheck::TestCasesTooLarge, HealthCheck::TooSlow]
 )]
 fn test_large_base_example_suppressed(tc: TestCase) {
     for _ in 0..10 {
