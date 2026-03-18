@@ -1,4 +1,4 @@
-RELEASE_TYPE: minor
+RELEASE_TYPE: patch
 
 Add a `#[hegel::composite]` macro to define composite generators:
 
