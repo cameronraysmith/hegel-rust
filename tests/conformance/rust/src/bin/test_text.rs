@@ -27,12 +27,12 @@ fn main() {
         std::process::exit(1);
     });
 
-    Hegel::new(move || {
-        let mut gen = generators::text().min_size(params.min_size);
+    Hegel::new(move |tc| {
+        let mut g = generators::text().min_size(params.min_size);
         if let Some(max) = params.max_size {
-            gen = gen.max_size(max);
+            g = g.max_size(max);
         }
-        let value = hegel::draw(&gen);
+        let value = tc.draw(g);
         // Report length in Unicode codepoints, not bytes
         let length = value.chars().count();
         write(&Metrics { length });

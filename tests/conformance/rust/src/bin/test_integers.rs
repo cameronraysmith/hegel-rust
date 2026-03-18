@@ -27,15 +27,15 @@ fn main() {
         std::process::exit(1);
     });
 
-    Hegel::new(move || {
-        let mut gen = generators::integers::<i32>();
+    Hegel::new(move |tc| {
+        let mut g = generators::integers::<i32>();
         if let Some(min) = params.min_value {
-            gen = gen.min_value(min);
+            g = g.min_value(min);
         }
         if let Some(max) = params.max_value {
-            gen = gen.max_value(max);
+            g = g.max_value(max);
         }
-        let value = hegel::draw(&gen);
+        let value = tc.draw(g);
         write(&Metrics { value });
     })
     .test_cases(get_test_cases())

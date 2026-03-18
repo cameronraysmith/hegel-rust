@@ -4,7 +4,7 @@ use syn::{DeriveInput, Fields};
 
 use crate::utils::{cbor_to_iter, default_gen_bounds, tuple_schema};
 
-/// Derive Generate for a struct.
+/// Derive Generator for a struct.
 pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct) -> TokenStream {
     let name = &input.ident;
     let generator_name = format_ident!("{}Generator", name);
@@ -14,22 +14,19 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
         Fields::Unnamed(_) => {
             return syn::Error::new_spanned(
                 input,
-                "Generate can only be derived for structs with named fields",
+                "Generator can only be derived for structs with named fields",
             )
             .to_compile_error()
             .into();
         }
         Fields::Unit => {
-            return syn::Error::new_spanned(input, "Generate cannot be derived for unit structs")
+            return syn::Error::new_spanned(input, "Generator cannot be derived for unit structs")
                 .to_compile_error()
                 .into();
         }
     };
 
-    let field_names: Vec<_> = fields
-        .iter()
-        .map(|f| f.ident.as_ref().unwrap())
-        .collect();
+    let field_names: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();
 
     let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
 
@@ -40,11 +37,14 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
         .collect();
 
     // Generate field definitions for the generator struct
-    let generator_fields = field_names.iter().zip(field_types.iter()).map(|(name, ty)| {
-        quote! {
-            #name: hegel::generators::BoxedGenerator<'a, #ty>
-        }
-    });
+    let generator_fields = field_names
+        .iter()
+        .zip(field_types.iter())
+        .map(|(name, ty)| {
+            quote! {
+                #name: hegel::generators::BoxedGenerator<'a, #ty>
+            }
+        });
 
     // Generate the new() constructor
     let new_field_inits = field_types.iter().map(|ty| {
@@ -57,19 +57,22 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
         quote! { #name: #init }
     });
 
-    // Generate Default trait bounds for new()
+    // Generator Default trait bounds for new()
     let default_bounds = default_gen_bounds(&field_types, quote! { 'a });
 
     // Generate with_* methods
-    let with_method_impls = field_names.iter().zip(field_types.iter()).zip(with_methods.iter())
+    let with_method_impls = field_names
+        .iter()
+        .zip(field_types.iter())
+        .zip(with_methods.iter())
         .map(|((field_name, field_type), method_name)| {
             quote! {
                 /// Set a custom generator for this field.
-                pub fn #method_name<G>(mut self, gen: G) -> Self
+                pub fn #method_name<G>(mut self, generator: G) -> Self
                 where
-                    G: hegel::generators::Generate<#field_type> + Send + Sync + 'a,
+                    G: hegel::generators::Generator<#field_type> + Send + Sync + 'a,
                 {
-                    self.#field_name = gen.boxed();
+                    self.#field_name = generator.boxed();
                     self
                 }
             }
@@ -115,7 +118,7 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
 
     let construct_fields: Vec<&syn::Ident> = field_names.clone();
 
-    // Generate DefaultGenerator bounds (same as new() but with 'static lifetime)
+    // Generator DefaultGenerate bounds (same as new() but with 'static lifetime)
     let default_generator_bounds = default_gen_bounds(&field_types, quote! { 'static });
 
     let schema_ts = tuple_schema(schema_elements);
@@ -150,11 +153,11 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
                 }
             }
 
-            impl<'a> hegel::generators::Generate<#name> for #generator_name<'a> {
-                fn do_draw(&self, __data: &hegel::generators::TestCaseData) -> #name {
-                    use hegel::generators::Generate;
+            impl<'a> hegel::generators::Generator<#name> for #generator_name<'a> {
+                fn do_draw(&self, __data: &hegel::TestCase) -> #name {
+                    use hegel::generators::Generator;
                     if let Some(basic) = self.as_basic() {
-                        basic.parse_raw(__data.generate_raw(basic.schema()))
+                        basic.parse_raw(hegel::generate_raw(__data, basic.schema()))
                     } else {
                         __data.start_span(hegel::generators::labels::FIXED_DICT);
                         let __result = #name {
@@ -166,7 +169,7 @@ pub(crate) fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct
                 }
 
                 fn as_basic(&self) -> Option<hegel::generators::BasicGenerator<'_, #name>> {
-                    use hegel::generators::Generate;
+                    use hegel::generators::Generator;
 
                     #(#basic_bindings)*
 

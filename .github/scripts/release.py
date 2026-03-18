@@ -1,10 +1,11 @@
 import argparse
+import os
 import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SOURCE_DIRS = ["src/", "hegel-derive/"]
+SOURCE_DIRS = ["src/", "hegel-macros/"]
 ROOT = Path(__file__).resolve().parent.parent.parent
 
 
@@ -55,6 +56,17 @@ def set_version(cargo_toml: Path, new_version: str) -> None:
         text,
         count=1,
         flags=re.MULTILINE,
+    )
+    cargo_toml.write_text(new_text)
+
+
+def set_macros_dep_version(cargo_toml: Path, new_version: str) -> None:
+    text = cargo_toml.read_text()
+    new_text = re.sub(
+        r'hegeltest-macros = \{ version = "=[^"]+"',
+        f'hegeltest-macros = {{ version = "={new_version}"',
+        text,
+        count=1,
     )
     cargo_toml.write_text(new_text)
 
@@ -124,20 +136,30 @@ def release() -> None:
     new_version = bump_version(m.group(1), release_type)
 
     set_version(ROOT / "Cargo.toml", new_version)
-    set_version(ROOT / "hegel-derive" / "Cargo.toml", new_version)
+    set_version(ROOT / "hegel-macros" / "Cargo.toml", new_version)
+    set_macros_dep_version(ROOT / "Cargo.toml", new_version)
 
     # regenerate lockfile after version bump
     subprocess.run(["cargo", "generate-lockfile"], check=True, cwd=ROOT)
 
     add_changelog(ROOT / "CHANGELOG.md", version=new_version, content=content)
 
-    git("config", "user.name", "hegel-release[bot]", cwd=ROOT)
-    git("config", "user.email", "noreply@github.com", cwd=ROOT)
+    app_slug = os.environ["HEGEL_RELEASE_APP_SLUG"]
+    bot_user_id = subprocess.check_output(
+        ["gh", "api", f"/users/{app_slug}[bot]", "--jq", ".id"], text=True
+    ).strip()
+    git("config", "user.name", f"{app_slug}[bot]", cwd=ROOT)
+    git(
+        "config",
+        "user.email",
+        f"{bot_user_id}+{app_slug}[bot]@users.noreply.github.com",
+        cwd=ROOT,
+    )
     git(
         "add",
         "Cargo.toml",
         "Cargo.lock",
-        "hegel-derive/Cargo.toml",
+        "hegel-macros/Cargo.toml",
         "CHANGELOG.md",
         cwd=ROOT,
     )
