@@ -34,9 +34,3 @@ fn test_addition_commutative(tc: hegel::TestCase) {
 
 See [docs/getting-started.md](docs/getting-started.md) for more.
 
-## Development
-
-```bash
-just test        # run tests
-just check       # run PR checks: lint + tests + docs
-```
