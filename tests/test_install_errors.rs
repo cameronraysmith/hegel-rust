@@ -29,15 +29,9 @@ fn main() {
     let output = TempRustProject::new()
         .main_file(code)
         .env_remove("HEGEL_SERVER_COMMAND")
-        .run();
+        .expect_failure("Could not find `uv` on your PATH")
+        .cargo_run(&[]);
 
-    assert!(!output.status.success());
-
-    assert!(
-        output.stderr.contains("Could not find `uv` on your PATH"),
-        "Expected uv-not-found message, got:\n{}",
-        output.stderr
-    );
     assert!(
         output.stderr.contains("HEGEL_SERVER_COMMAND"),
         "Expected HEGEL_SERVER_COMMAND hint, got:\n{}",
