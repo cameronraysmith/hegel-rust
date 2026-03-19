@@ -27,7 +27,10 @@ impl Parse for TestArgs {
         let mut settings_args = Vec::new();
 
         if input.is_empty() {
-            return Ok(TestArgs { settings, settings_args });
+            return Ok(TestArgs {
+                settings,
+                settings_args,
+            });
         }
 
         // check if the first arg is a settings expression or a named settingArg
@@ -49,7 +52,10 @@ impl Parse for TestArgs {
             }
         }
 
-        Ok(TestArgs { settings, settings_args })
+        Ok(TestArgs {
+            settings,
+            settings_args,
+        })
     }
 }
 

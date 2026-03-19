@@ -355,7 +355,11 @@ impl Settings {
             verbosity: Verbosity::Normal,
             seed: None,
             derandomize: in_ci,
-            database: if in_ci { Database::Disabled } else { Database::Unset },
+            database: if in_ci {
+                Database::Disabled
+            } else {
+                Database::Unset
+            },
         }
     }
 

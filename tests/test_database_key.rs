@@ -18,7 +18,8 @@ fn test_database_key_replays_failure() {
     std::fs::create_dir_all(&db_path).unwrap();
     let db_str = db_path.to_str().unwrap();
 
-    let test_code = format!(r#"
+    let test_code = format!(
+        r#"
 use hegel::generators;
 use std::io::Write;
 
@@ -45,7 +46,8 @@ fn test_2() {{
     record_test_case("test_2", n);
     assert!(n < 1_000_000);
 }}
-"#);
+"#
+    );
 
     let values_path = temp_dir.path().join("values");
     std::fs::create_dir_all(&values_path).unwrap();

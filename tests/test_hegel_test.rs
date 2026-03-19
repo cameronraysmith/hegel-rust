@@ -42,18 +42,19 @@ fn test_database_persists_failing_examples() {
 
     assert!(std::fs::read_dir(db_path.path()).unwrap().next().is_none());
 
-    expect_panic(|| {
-        hegel::Hegel::new(|_tc: hegel::TestCase| {
-            panic!("");
-        })
-        .settings(hegel::Settings::new().database(Some(db_str)))
-        .__database_key("test_database_persists".to_string())
-        .run();
-    }, "Property test failed");
+    expect_panic(
+        || {
+            hegel::Hegel::new(|_tc: hegel::TestCase| {
+                panic!("");
+            })
+            .settings(hegel::Settings::new().database(Some(db_str)))
+            .__database_key("test_database_persists".to_string())
+            .run();
+        },
+        "Property test failed",
+    );
 
-    let entries: Vec<_> = std::fs::read_dir(db_path.path())
-        .unwrap()
-        .collect();
+    let entries: Vec<_> = std::fs::read_dir(db_path.path()).unwrap().collect();
     assert!(!entries.is_empty());
 }
 

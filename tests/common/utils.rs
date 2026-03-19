@@ -1,11 +1,11 @@
 // internal helper code
 #![allow(dead_code)]
 
-use std::panic::{catch_unwind, UnwindSafe};
+use std::panic::{UnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex};
 
-use hegel::{Hegel, Settings};
 use hegel::generators::Generator;
+use hegel::{Hegel, Settings};
 use regex::Regex;
 use std::fmt::Debug;
 
