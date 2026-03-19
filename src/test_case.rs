@@ -253,6 +253,11 @@ impl TestCase {
                     // error in the test_done results, which runner.rs handles.
                     self.inner.borrow_mut().test_aborted = true;
                     Err(StopTestError)
+                } else if self.inner.borrow().connection.server_has_exited() {
+                    panic!(
+                        "The hegel server process exited unexpectedly. \
+                         See .hegel/server.log for diagnostic information."
+                    );
                 } else {
                     panic!("Failed to communicate with Hegel: {}", e);
                 }

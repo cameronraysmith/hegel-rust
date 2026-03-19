@@ -458,6 +458,15 @@ where
         let mut attempts = 0;
         // wait for socket initialization
         let stream = loop {
+            // Check if server has already exited
+            if let Ok(Some(status)) = child.try_wait() {
+                panic!(
+                    "The hegel server process exited immediately ({}). \
+                     See .hegel/server.log for diagnostic information.",
+                    status
+                );
+            }
+
             if socket_path.exists() {
                 match UnixStream::connect(&socket_path) {
                     Ok(stream) => break stream,
@@ -482,6 +491,12 @@ where
 
         // set a read timeout so we don't hang if the server crashes
         stream.set_read_timeout(Some(Duration::from_secs(120))).ok();
+
+        // Clone stream before Connection takes ownership, so the monitor
+        // thread can shut it down if the server exits unexpectedly.
+        let monitor_stream = stream
+            .try_clone()
+            .expect("Failed to clone stream for server monitoring");
 
         let connection = Connection::new(stream);
         let control = connection.control_channel();
@@ -518,6 +533,15 @@ where
         if self.verbosity == Verbosity::Debug {
             eprintln!("Version negotiation complete");
         }
+
+        // Monitor the server process. If it exits unexpectedly, shut down the
+        // socket so blocking reads fail immediately instead of waiting for timeout.
+        let conn_for_monitor = Arc::clone(&connection);
+        let monitor_handle = std::thread::spawn(move || {
+            let _ = child.wait();
+            conn_for_monitor.mark_server_exited();
+            let _ = monitor_stream.shutdown(std::net::Shutdown::Both);
+        });
 
         let mut test_fn = self.test_fn;
         let verbosity = self.verbosity;
@@ -595,6 +619,13 @@ where
                         verbosity,
                         &got_interesting,
                     );
+
+                    if connection.server_has_exited() {
+                        panic!(
+                            "The hegel server process exited unexpectedly. \
+                             See .hegel/server.log for diagnostic information."
+                        );
+                    }
                 }
                 "test_done" => {
                     let ack_true = cbor_map! {"result" => true};
@@ -616,7 +647,7 @@ where
             drop(control);
             let _ = connection.close();
             drop(connection);
-            let _ = child.wait().expect("Failed to wait for hegel server");
+            let _ = monitor_handle.join();
             panic!("Server error: {}", error_msg);
         }
 
@@ -626,7 +657,7 @@ where
             drop(control);
             let _ = connection.close();
             drop(connection);
-            let _ = child.wait().expect("Failed to wait for hegel server");
+            let _ = monitor_handle.join();
             panic!("Health check failure:\n{}", failure_msg);
         }
 
@@ -636,7 +667,7 @@ where
             drop(control);
             let _ = connection.close();
             drop(connection);
-            let _ = child.wait().expect("Failed to wait for hegel server");
+            let _ = monitor_handle.join();
             panic!("Flaky test detected: {}", flaky_msg);
         }
 
@@ -676,6 +707,13 @@ where
                 verbosity,
                 &got_interesting,
             );
+
+            if connection.server_has_exited() {
+                panic!(
+                    "The hegel server process exited unexpectedly. \
+                     See .hegel/server.log for diagnostic information."
+                );
+            }
         }
 
         let passed = map_get(&result_data, "passed")
@@ -688,7 +726,8 @@ where
         let _ = connection.close();
         drop(connection);
 
-        let _ = child.wait().expect("Failed to wait for hegel server");
+        // Wait for the server process to exit via the monitor thread
+        let _ = monitor_handle.join();
 
         if !passed || got_interesting.load(Ordering::SeqCst) {
             panic!("Property test failed");
