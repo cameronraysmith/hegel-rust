@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11 - 2026-03-20
+
+This improves error messages when uv is not installed.
+
 ## 0.1.10 - 2026-03-20
 
 Adds support for the on-disk database, which automatically replays failing test.
