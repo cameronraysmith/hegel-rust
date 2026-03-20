@@ -1,6 +1,7 @@
 // internal helper code
 #![allow(dead_code)]
 
+use super::utils::assert_matches_regex;
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,9 +15,9 @@ pub struct TempRustProject {
     _temp_dir: TempDir,
     project_path: PathBuf,
     env_vars: Vec<(String, String)>,
+    env_removes: Vec<String>,
     features: Vec<String>,
-    has_main: bool,
-    has_tests: bool,
+    expect_failure: Option<String>,
 }
 
 pub struct RunOutput {
@@ -62,26 +63,23 @@ hegeltest = {{ path = "{}" }}
             _temp_dir: temp_dir,
             project_path,
             env_vars: Vec::new(),
+            env_removes: Vec::new(),
             features: Vec::new(),
-            has_main: false,
-            has_tests: false,
+            expect_failure: None,
         }
     }
 
-    pub fn main_file(mut self, code: &str) -> Self {
-        assert!(!self.has_main, "main_file can only be called once");
+    pub fn main_file(self, code: &str) -> Self {
         let src_dir = self.project_path.join("src");
         std::fs::create_dir_all(&src_dir).unwrap();
         std::fs::write(src_dir.join("main.rs"), code).unwrap();
-        self.has_main = true;
         self
     }
 
-    pub fn test_file(mut self, code: &str) -> Self {
+    pub fn test_file(self, name: &str, content: &str) -> Self {
         let tests_dir = self.project_path.join("tests");
         std::fs::create_dir_all(&tests_dir).unwrap();
-        std::fs::write(tests_dir.join("test.rs"), code).unwrap();
-        self.has_tests = true;
+        std::fs::write(tests_dir.join(name), content).unwrap();
         self
     }
 
@@ -95,14 +93,20 @@ hegeltest = {{ path = "{}" }}
         self
     }
 
-    pub fn run(self) -> RunOutput {
+    pub fn expect_failure(mut self, pattern: &str) -> Self {
+        self.expect_failure = Some(pattern.to_string());
+        self
+    }
+
+    pub fn env_remove(mut self, key: &str) -> Self {
+        self.env_removes.push(key.to_string());
+        self
+    }
+
+    fn cargo(&self, args: &[&str]) -> RunOutput {
         // cache build output from TempRustProject across tests. Compilation time is substantial
         // (10+ seconds) and this lets us only incur that cost on the first test.
         let cached_target = std::env::temp_dir().join("hegel-test-cargo-target");
-        assert!(
-            self.has_main || self.has_tests,
-            "TempRustProject needs at least a main_file or test_file"
-        );
 
         let hegel_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let features = if self.features.is_empty() {
@@ -132,26 +136,58 @@ hegeltest = {{ path = "{path}"{features} }}
         std::fs::write(self.project_path.join("Cargo.toml"), cargo_toml).unwrap();
 
         let mut cmd = Command::new(env!("CARGO"));
-
-        if self.has_tests {
-            cmd.args(["test", "--quiet"]);
-        } else {
-            cmd.args(["run", "--quiet"]);
-        }
-
-        cmd.current_dir(&self.project_path)
+        cmd.args(args)
+            .current_dir(&self.project_path)
             .env("CARGO_TARGET_DIR", &cached_target);
 
+        for key in &self.env_removes {
+            cmd.env_remove(key);
+        }
         for (key, value) in &self.env_vars {
             cmd.env(key, value);
         }
 
         let output = cmd.output().unwrap();
 
-        RunOutput {
+        let run_output = RunOutput {
             status: output.status,
             stdout: String::from_utf8_lossy(&output.stdout).trim().to_string(),
             stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        };
+
+        match &self.expect_failure {
+            None => {
+                assert!(
+                    run_output.status.success(),
+                    "Expected command to succeed.\nstdout:\n{}\nstderr:\n{}",
+                    run_output.stdout,
+                    run_output.stderr
+                );
+            }
+            Some(pattern) => {
+                assert!(
+                    !run_output.status.success(),
+                    "Expected command to fail.\nstdout:\n{}\nstderr:\n{}",
+                    run_output.stdout,
+                    run_output.stderr
+                );
+                let combined = format!("{}\n{}", run_output.stdout, run_output.stderr);
+                assert_matches_regex(&combined, pattern);
+            }
         }
+
+        run_output
+    }
+
+    pub fn cargo_run(&self, args: &[&str]) -> RunOutput {
+        let mut all = vec!["run", "--quiet"];
+        all.extend(args);
+        self.cargo(&all)
+    }
+
+    pub fn cargo_test(&self, args: &[&str]) -> RunOutput {
+        let mut all = vec!["test", "--quiet"];
+        all.extend(args);
+        self.cargo(&all)
     }
 }
