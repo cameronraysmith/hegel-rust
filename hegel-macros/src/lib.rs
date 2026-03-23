@@ -1,10 +1,11 @@
+mod composite;
 mod enum_gen;
 mod hegel_test;
 mod struct_gen;
 mod utils;
 
 use proc_macro::TokenStream;
-use syn::{Data, DeriveInput, parse_macro_input};
+use syn::{Data, DeriveInput, ItemFn, parse_macro_input};
 
 /// Derive a generator for a struct or enum.
 ///
@@ -12,19 +13,19 @@ use syn::{Data, DeriveInput, parse_macro_input};
 /// allowing it to be used with [`default`](hegel::generators::default) via `default::<T>()`.
 ///
 /// For structs, the generated generator has:
-/// - `with_<field>(gen)` - builder method to customize each field's generator
+/// - `<field>(generator)` - builder method to customize each field's generator
 ///
 /// For enums, the generated generator has:
 /// - `default_<VariantName>()` - methods returning default variant generators
-/// - `with_<VariantName>(gen)` - builder methods to customize variant generation
+/// - `<VariantName>(generator)` - builder methods to customize variant generation
 ///
 /// # Struct Example
 ///
 /// ```ignore
-/// use hegel::Generator;
-/// use hegel::generators::{self, DefaultGenerator, Generator as _};
+/// use hegel::DefaultGenerator;
+/// use hegel::generators::{self, DefaultGenerator as _, Generator as _};
 ///
-/// #[derive(Generator)]
+/// #[derive(DefaultGenerator)]
 /// struct Person {
 ///     name: String,
 ///     age: u32,
@@ -32,19 +33,19 @@ use syn::{Data, DeriveInput, parse_macro_input};
 ///
 /// #[hegel::test]
 /// fn generates_people(tc: hegel::TestCase) {
-///     let gen = generators::default::<Person>()
-///         .with_age(generators::integers::<u32>().min_value(0).max_value(120));
-///     let person: Person = tc.draw(gen);
+///     let generator = generators::default::<Person>()
+///         .age(generators::integers::<u32>().min_value(0).max_value(120));
+///     let person: Person = tc.draw(generator);
 /// }
 /// ```
 ///
 /// # Enum Example
 ///
 /// ```ignore
-/// use hegel::Generator;
-/// use hegel::generators::{self, DefaultGenerator, Generator as _};
+/// use hegel::DefaultGenerator;
+/// use hegel::generators::{self, DefaultGenerator as _, Generator as _};
 ///
-/// #[derive(Generator)]
+/// #[derive(DefaultGenerator)]
 /// enum Status {
 ///     Pending,
 ///     Active { since: String },
@@ -53,22 +54,22 @@ use syn::{Data, DeriveInput, parse_macro_input};
 ///
 /// #[hegel::test]
 /// fn generates_statuses(tc: hegel::TestCase) {
-///     let gen = generators::default::<Status>()
-///         .with_Active(
+///     let generator = generators::default::<Status>()
+///         .Active(
 ///             generators::default::<Status>()
 ///                 .default_Active()
-///                 .with_since(generators::text().max_size(20))
+///                 .since(generators::text().max_size(20))
 ///         );
-///     let status: Status = tc.draw(gen);
+///     let status: Status = tc.draw(generator);
 /// }
 /// ```
-#[proc_macro_derive(Generator)]
-pub fn derive_generate(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(DefaultGenerator)]
+pub fn derive_generator(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     match &input.data {
-        Data::Struct(data) => struct_gen::derive_struct_generate(&input, data),
-        Data::Enum(data) => enum_gen::derive_enum_generate(&input, data),
+        Data::Struct(data) => struct_gen::derive_struct_generator(&input, data),
+        Data::Enum(data) => enum_gen::derive_enum_generator(&input, data),
         Data::Union(_) => syn::Error::new_spanned(&input, "Generator cannot be derived for unions")
             .to_compile_error()
             .into(),
@@ -100,4 +101,10 @@ pub fn derive_generate(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn test(attr: TokenStream, item: TokenStream) -> TokenStream {
     hegel_test::expand_test(attr.into(), item.into()).into()
+}
+
+#[proc_macro_attribute]
+pub fn composite(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    composite::expand_composite(input).into()
 }

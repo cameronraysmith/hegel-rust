@@ -1,5 +1,6 @@
+use crate::antithesis::{TestLocation, is_running_in_antithesis};
 use crate::control::{currently_in_test_context, set_in_test_context};
-use crate::protocol::{Channel, Connection, HANDSHAKE_STRING};
+use crate::protocol::{Channel, Connection, HANDSHAKE_STRING, SERVER_CRASHED_MESSAGE};
 use crate::test_case::{ASSUME_FAIL_STRING, TestCase};
 use ciborium::Value;
 
@@ -15,8 +16,8 @@ use std::sync::{Arc, Mutex, Once};
 use std::time::Duration;
 use tempfile::TempDir;
 
-const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.1, 0.4);
-const HEGEL_SERVER_VERSION: &str = "0.1.0";
+const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.6, 0.7);
+const HEGEL_SERVER_VERSION: &str = "0.2.2";
 const HEGEL_SERVER_COMMAND_ENV: &str = "HEGEL_SERVER_COMMAND";
 const HEGEL_SERVER_DIR: &str = ".hegel";
 static HEGEL_SERVER_COMMAND: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -184,11 +185,26 @@ fn ensure_hegel_installed() -> Result<String, String> {
         .args(["venv", "--clear", &venv_dir])
         .stderr(log_file.try_clone().unwrap())
         .stdout(log_file.try_clone().unwrap())
-        .status()
-        .map_err(|e| format!("Failed to run uv venv: {e}"))?;
-    if !status.success() {
-        let log = std::fs::read_to_string(&install_log).unwrap_or_default();
-        return Err(format!("uv venv failed. Install log:\n{log}"));
+        .status();
+    match &status {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "Could not find `uv` on your PATH. Hegel requires uv to \
+                 automatically install its server component.\n\n\
+                 To fix this, either:\n\
+                 - Install uv: https://docs.astral.sh/uv/getting-started/installation/\n\
+                 - Or set {HEGEL_SERVER_COMMAND_ENV} to a hegel-core binary path\n\n\
+                 For more details, see: https://github.com/hegeldev/hegel-rust/blob/main/docs/installation.md"
+            ));
+        }
+        Err(e) => {
+            return Err(format!("Failed to run `uv venv`: {e}"));
+        }
+        Ok(s) if !s.success() => {
+            let log = std::fs::read_to_string(&install_log).unwrap_or_default();
+            return Err(format!("uv venv failed. Install log:\n{log}"));
+        }
+        Ok(_) => {}
     }
 
     let python_path = format!("{venv_dir}/bin/python");
@@ -203,11 +219,11 @@ fn ensure_hegel_installed() -> Result<String, String> {
         .stderr(log_file.try_clone().unwrap())
         .stdout(log_file)
         .status()
-        .map_err(|e| format!("Failed to run uv pip install: {e}"))?;
+        .map_err(|e| format!("Failed to run `uv pip install`: {e}"))?;
     if !status.success() {
         let log = std::fs::read_to_string(&install_log).unwrap_or_default();
         return Err(format!(
-            "Failed to install hegel (version: {HEGEL_SERVER_VERSION}). \
+            "Failed to install hegel-core (version: {HEGEL_SERVER_VERSION}). \
              Set {HEGEL_SERVER_COMMAND_ENV} to a hegel binary path to skip installation.\n\
              Install log:\n{log}"
         ));
@@ -248,6 +264,54 @@ fn find_hegel() -> String {
             ensure_hegel_installed().unwrap_or_else(|e| panic!("Failed to ensure hegel: {e}"))
         })
         .clone()
+}
+
+/// Health checks that can be suppressed during test execution.
+///
+/// Health checks detect common issues with test configuration that would
+/// otherwise cause tests to run inefficiently or not at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HealthCheck {
+    /// Too many test cases are being filtered out via `assume()`.
+    FilterTooMuch,
+    /// Test execution is too slow.
+    TooSlow,
+    /// Generated test cases are too large.
+    TestCasesTooLarge,
+    /// The smallest natural input is very large.
+    LargeInitialTestCase,
+}
+
+impl HealthCheck {
+    /// Returns all health check variants.
+    ///
+    /// Useful for suppressing all health checks at once:
+    ///
+    /// ```no_run
+    /// use hegel::HealthCheck;
+    ///
+    /// #[hegel::test(suppress_health_check = HealthCheck::all())]
+    /// fn my_test(tc: hegel::TestCase) {
+    ///     // ...
+    /// }
+    /// ```
+    pub const fn all() -> [HealthCheck; 4] {
+        [
+            HealthCheck::FilterTooMuch,
+            HealthCheck::TooSlow,
+            HealthCheck::TestCasesTooLarge,
+            HealthCheck::LargeInitialTestCase,
+        ]
+    }
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            HealthCheck::FilterTooMuch => "filter_too_much",
+            HealthCheck::TooSlow => "too_slow",
+            HealthCheck::TestCasesTooLarge => "test_cases_too_large",
+            HealthCheck::LargeInitialTestCase => "large_initial_test_case",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -294,38 +358,74 @@ where
 
 /// Builder for running property-based tests with Hegel.
 ///
-/// Use [`Hegel::new`] to create a builder, configure it with method chains,
-/// then call [`run`](Hegel::run) to execute the tests.
+/// Use [`Hegel::new`] to create a builder, then call [`run`](Hegel::run) to
+/// execute the tests. Use [`settings`](Hegel::settings) to customize test
+/// behavior via a [`Settings`] instance.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use hegel::Verbosity;
+/// use hegel::{Settings, Verbosity};
 /// use hegel::generators;
 ///
-/// #[hegel::test(test_cases = 500, verbosity = Verbosity::Verbose)]
+/// #[hegel::test(settings = Settings::new().test_cases(500).verbosity(Verbosity::Verbose))]
 /// fn test_with_options(tc: hegel::TestCase) {
 ///     let n = tc.draw(generators::integers::<i32>());
 ///     assert!(n + 0 == n);
 /// }
 /// ```
-pub struct Hegel<F> {
-    test_fn: F,
+fn is_in_ci() -> bool {
+    const CI_VARS: &[(&str, Option<&str>)] = &[
+        ("CI", None),
+        ("TF_BUILD", Some("true")),
+        ("BUILDKITE", Some("true")),
+        ("CIRCLECI", Some("true")),
+        ("CIRRUS_CI", Some("true")),
+        ("CODEBUILD_BUILD_ID", None),
+        ("GITHUB_ACTIONS", Some("true")),
+        ("GITLAB_CI", None),
+        ("HEROKU_TEST_RUN_ID", None),
+        ("TEAMCITY_VERSION", None),
+        ("bamboo.buildKey", None),
+    ];
+
+    CI_VARS.iter().any(|(key, value)| match value {
+        None => std::env::var_os(key).is_some(),
+        Some(expected) => std::env::var(key).ok().as_deref() == Some(expected),
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Database {
+    Unset,
+    Disabled,
+    Path(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct Settings {
     test_cases: u64,
     verbosity: Verbosity,
     seed: Option<u64>,
+    derandomize: bool,
+    database: Database,
+    suppress_health_check: Vec<HealthCheck>,
 }
 
-impl<F> Hegel<F>
-where
-    F: FnMut(TestCase),
-{
-    pub fn new(test_fn: F) -> Self {
+impl Settings {
+    pub fn new() -> Self {
+        let in_ci = is_in_ci();
         Self {
-            test_fn,
             test_cases: 100,
             verbosity: Verbosity::Normal,
             seed: None,
+            derandomize: in_ci,
+            database: if in_ci {
+                Database::Disabled
+            } else {
+                Database::Unset
+            },
+            suppress_health_check: Vec::new(),
         }
     }
 
@@ -341,6 +441,85 @@ where
 
     pub fn seed(mut self, seed: Option<u64>) -> Self {
         self.seed = seed;
+        self
+    }
+
+    pub fn derandomize(mut self, derandomize: bool) -> Self {
+        self.derandomize = derandomize;
+        self
+    }
+
+    pub fn database(mut self, database: Option<String>) -> Self {
+        self.database = match database {
+            None => Database::Disabled,
+            Some(path) => Database::Path(path),
+        };
+        self
+    }
+
+    /// Suppress one or more health checks so they do not cause test failure.
+    ///
+    /// Health checks detect common issues like excessive filtering or slow
+    /// tests. Use this to suppress specific checks when they are expected.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use hegel::{HealthCheck, Verbosity};
+    /// use hegel::generators;
+    ///
+    /// #[hegel::test(suppress_health_check = [HealthCheck::FilterTooMuch, HealthCheck::TooSlow])]
+    /// fn my_test(tc: hegel::TestCase) {
+    ///     let n: i32 = tc.draw(generators::integers());
+    ///     tc.assume(n > 0);
+    /// }
+    /// ```
+    pub fn suppress_health_check(mut self, checks: impl IntoIterator<Item = HealthCheck>) -> Self {
+        self.suppress_health_check.extend(checks);
+        self
+    }
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct Hegel<F> {
+    test_fn: F,
+    database_key: Option<String>,
+    test_location: Option<TestLocation>,
+    settings: Settings,
+}
+
+impl<F> Hegel<F>
+where
+    F: FnMut(TestCase),
+{
+    pub fn new(test_fn: F) -> Self {
+        Self {
+            test_fn,
+            database_key: None,
+            settings: Settings::new(),
+            test_location: None,
+        }
+    }
+
+    pub fn settings(mut self, settings: Settings) -> Self {
+        self.settings = settings;
+        self
+    }
+
+    #[doc(hidden)]
+    pub fn __database_key(mut self, key: String) -> Self {
+        self.database_key = Some(key);
+        self
+    }
+
+    #[doc(hidden)]
+    pub fn test_location(mut self, location: TestLocation) -> Self {
+        self.test_location = Some(location);
         self
     }
 
@@ -362,7 +541,7 @@ where
         let mut cmd = Command::new(&hegel_binary_path);
         cmd.arg(&socket_path)
             .arg("--verbosity")
-            .arg(self.verbosity.as_str());
+            .arg(self.settings.verbosity.as_str());
 
         cmd.env("PYTHONUNBUFFERED", "1");
         let log_file = server_log_file();
@@ -372,7 +551,7 @@ where
         cmd.stdout(Stdio::from(log_file));
         cmd.stderr(Stdio::from(log_file2));
 
-        if self.verbosity == Verbosity::Debug {
+        if self.settings.verbosity == Verbosity::Debug {
             eprintln!("Starting hegel server: {:?}", cmd);
         }
 
@@ -386,6 +565,15 @@ where
         let mut attempts = 0;
         // wait for socket initialization
         let stream = loop {
+            // Check if server has already exited
+            if let Ok(Some(status)) = child.try_wait() {
+                panic!(
+                    "The hegel server process exited immediately ({}). \
+                     See .hegel/server.log for diagnostic information.",
+                    status
+                );
+            }
+
             if socket_path.exists() {
                 match UnixStream::connect(&socket_path) {
                     Ok(stream) => break stream,
@@ -410,6 +598,12 @@ where
 
         // set a read timeout so we don't hang if the server crashes
         stream.set_read_timeout(Some(Duration::from_secs(120))).ok();
+
+        // Clone stream before Connection takes ownership, so the monitor
+        // thread can shut it down if the server exits unexpectedly.
+        let monitor_stream = stream
+            .try_clone()
+            .expect("Failed to clone stream for server monitoring");
 
         let connection = Connection::new(stream);
         let control = connection.control_channel();
@@ -443,21 +637,61 @@ where
             );
         }
 
-        if self.verbosity == Verbosity::Debug {
+        if self.settings.verbosity == Verbosity::Debug {
             eprintln!("Version negotiation complete");
         }
 
+        // Monitor the server process. If it exits unexpectedly, shut down the
+        // socket so blocking reads fail immediately instead of waiting for timeout.
+        let conn_for_monitor = Arc::clone(&connection);
+        let monitor_handle = std::thread::spawn(move || {
+            let _ = child.wait();
+            conn_for_monitor.mark_server_exited();
+            let _ = monitor_stream.shutdown(std::net::Shutdown::Both);
+        });
+
         let mut test_fn = self.test_fn;
-        let verbosity = self.verbosity;
+        let verbosity = self.settings.verbosity;
         let got_interesting = Arc::new(AtomicBool::new(false));
         let test_channel = connection.new_channel();
 
-        let run_test_msg = cbor_map! {
+        let suppress_names: Vec<Value> = self
+            .settings
+            .suppress_health_check
+            .iter()
+            .map(|c| Value::Text(c.as_str().to_string()))
+            .collect();
+
+        let database_key_bytes = self
+            .database_key
+            .map_or(Value::Null, |k| Value::Bytes(k.into_bytes()));
+
+        let mut run_test_msg = cbor_map! {
             "command" => "run_test",
-            "test_cases" => self.test_cases,
-            "seed" => self.seed.map_or(Value::Null, Value::from),
-            "channel_id" => test_channel.channel_id
+            "test_cases" => self.settings.test_cases,
+            "seed" => self.settings.seed.map_or(Value::Null, Value::from),
+            "channel_id" => test_channel.channel_id,
+            "database_key" => database_key_bytes,
+            "derandomize" => self.settings.derandomize
         };
+        let db_value = match &self.settings.database {
+            Database::Unset => Option::None,
+            Database::Disabled => Some(Value::Null),
+            Database::Path(s) => Some(Value::Text(s.clone())),
+        };
+        if let Some(db) = db_value {
+            if let Value::Map(ref mut map) = run_test_msg {
+                map.push((Value::Text("database".to_string()), db));
+            }
+        }
+        if !suppress_names.is_empty() {
+            if let Value::Map(ref mut map) = run_test_msg {
+                map.push((
+                    Value::Text("suppress_health_check".to_string()),
+                    Value::Array(suppress_names),
+                ));
+            }
+        }
 
         let run_test_id = control
             .send_request(cbor_encode(&run_test_msg))
@@ -509,6 +743,10 @@ where
                         verbosity,
                         &got_interesting,
                     );
+
+                    if connection.server_has_exited() {
+                        panic!("{}", SERVER_CRASHED_MESSAGE);
+                    }
                 }
                 "test_done" => {
                     let ack_true = cbor_map! {"result" => true};
@@ -522,6 +760,36 @@ where
                     panic!("unknown event: {}", event_type);
                 }
             }
+        }
+
+        // Check for server-side errors before processing results
+        if let Some(error_msg) = map_get(&result_data, "error").and_then(as_text) {
+            drop(test_channel);
+            drop(control);
+            let _ = connection.close();
+            drop(connection);
+            let _ = monitor_handle.join();
+            panic!("Server error: {}", error_msg);
+        }
+
+        // Check for health check failure before processing results
+        if let Some(failure_msg) = map_get(&result_data, "health_check_failure").and_then(as_text) {
+            drop(test_channel);
+            drop(control);
+            let _ = connection.close();
+            drop(connection);
+            let _ = monitor_handle.join();
+            panic!("Health check failure:\n{}", failure_msg);
+        }
+
+        // Check for flaky test detection
+        if let Some(flaky_msg) = map_get(&result_data, "flaky").and_then(as_text) {
+            drop(test_channel);
+            drop(control);
+            let _ = connection.close();
+            drop(connection);
+            let _ = monitor_handle.join();
+            panic!("Flaky test detected: {}", flaky_msg);
         }
 
         let n_interesting = map_get(&result_data, "interesting_test_cases")
@@ -560,6 +828,10 @@ where
                 verbosity,
                 &got_interesting,
             );
+
+            if connection.server_has_exited() {
+                panic!("{}", SERVER_CRASHED_MESSAGE);
+            }
         }
 
         let passed = map_get(&result_data, "passed")
@@ -572,9 +844,27 @@ where
         let _ = connection.close();
         drop(connection);
 
-        let _ = child.wait().expect("Failed to wait for hegel server");
+        // Wait for the server process to exit via the monitor thread
+        let _ = monitor_handle.join();
 
-        if !passed || got_interesting.load(Ordering::SeqCst) {
+        let test_failed = !passed || got_interesting.load(Ordering::SeqCst);
+
+        if is_running_in_antithesis() {
+            // if we're running inside of antithesis, but the user hasn't opted in
+            // to the antithesis feature, loudly inform them.
+            #[cfg(not(feature = "antithesis"))]
+            panic!(
+                "When Hegel is run inside of Antithesis, it requires the `antithesis` feature. \
+                You can add it with {{ features = [\"antithesis\"] }}."
+            );
+
+            #[cfg(feature = "antithesis")]
+            if let Some(ref loc) = self.test_location {
+                crate::antithesis::emit_assertion(loc, !test_failed);
+            }
+        }
+
+        if test_failed {
             panic!("Property test failed");
         }
     }

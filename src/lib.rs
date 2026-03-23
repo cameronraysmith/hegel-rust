@@ -150,14 +150,14 @@
 //!
 //! # Deriving Generators
 //!
-//! Use `#[derive(Generator)]` to automatically create generators for structs and enums,
+//! Use `#[derive(DefaultGenerator)]` to automatically create generators for structs and enums,
 //! then use [`generators::default`] to get a generator:
 //!
 //! ```no_run
-//! use hegel::Generator;
+//! use hegel::DefaultGenerator;
 //! use hegel::generators;
 //!
-//! #[derive(Generator, Debug)]
+//! #[derive(DefaultGenerator, Debug)]
 //! struct Person {
 //!     name: String,
 //!     age: u32,
@@ -170,7 +170,7 @@
 //!
 //!     // Customize field generators
 //!     let person: Person = tc.draw(generators::default::<Person>()
-//!         .with_age(generators::integers().min_value(0).max_value(120)));
+//!         .age(generators::integers().min_value(0).max_value(120)));
 //! }
 //! ```
 //!
@@ -209,6 +209,7 @@
 //!
 //! Set verbosity to [`Verbosity::Debug`] to enable debug logging of requests/responses.
 
+pub(crate) mod antithesis;
 pub(crate) mod cbor_utils;
 pub(crate) mod control;
 pub mod generators;
@@ -226,9 +227,12 @@ pub use ciborium;
 #[doc(hidden)]
 pub use paste;
 #[doc(hidden)]
-pub use test_case::{generate_from_schema, generate_raw};
+pub use test_case::{__IsTestCase, __assert_is_test_case, generate_from_schema, generate_raw};
 
 // re-export public api
-pub use hegel_macros::Generator;
+#[doc(hidden)]
+pub use antithesis::TestLocation;
+pub use hegel_macros::DefaultGenerator;
+pub use hegel_macros::composite;
 pub use hegel_macros::test;
-pub use runner::{Hegel, Verbosity, hegel};
+pub use runner::{HealthCheck, Hegel, Settings, Verbosity, hegel};

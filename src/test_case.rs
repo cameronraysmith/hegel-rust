@@ -1,6 +1,6 @@
 use crate::cbor_utils::{cbor_map, map_insert};
 use crate::generators::Generator;
-use crate::protocol::{Channel, Connection};
+use crate::protocol::{Channel, Connection, SERVER_CRASHED_MESSAGE};
 use crate::runner::Verbosity;
 use ciborium::Value;
 use std::cell::RefCell;
@@ -8,6 +8,22 @@ use std::rc::Rc;
 use std::sync::{Arc, LazyLock};
 
 use crate::generators::value;
+
+// We use the __IsTestCase trait internally to provide nice error messages for misuses of #[composite].
+// It should not be used by users.
+//
+// The idea is #[composite] calls __assert_is_test_case(<first param>), which errors with our on_unimplemented
+// message iff the first param does not have type TestCase.
+
+#[diagnostic::on_unimplemented(
+    // NOTE: worth checking if edits to this message should also be applied to the similar-but-different
+    // error message in #[composite] in hegel-macros.
+    message = "The first parameter in a #[composite] generator must have type TestCase.",
+    label = "This type does not match `TestCase`."
+)]
+pub trait __IsTestCase {}
+impl __IsTestCase for TestCase {}
+pub fn __assert_is_test_case<T: __IsTestCase>() {}
 
 static PROTOCOL_DEBUG: LazyLock<bool> = LazyLock::new(|| {
     matches!(
@@ -230,6 +246,15 @@ impl TestCase {
                     }
                     self.inner.borrow_mut().test_aborted = true;
                     Err(StopTestError)
+                } else if error_msg.contains("FlakyStrategyDefinition")
+                    || error_msg.contains("FlakyReplay")
+                {
+                    // Abort the test case; the server will report the flaky
+                    // error in the test_done results, which runner.rs handles.
+                    self.inner.borrow_mut().test_aborted = true;
+                    Err(StopTestError)
+                } else if self.inner.borrow().connection.server_has_exited() {
+                    panic!("{}", SERVER_CRASHED_MESSAGE);
                 } else {
                     panic!("Failed to communicate with Hegel: {}", e);
                 }
