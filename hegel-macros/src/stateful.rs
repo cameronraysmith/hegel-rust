@@ -29,11 +29,13 @@ pub fn expand_state_machine(mut block: ItemImpl) -> TokenStream {
 
     let block_type = &block.self_ty;
 
+    let rule_name_strings: Vec<String> = rule_names.iter().map(|id| id.to_string()).collect();
+
     quote! {
         #block
         impl ::hegel::stateful::StateMachine for #block_type {
-            fn rules(&self) -> Vec<fn(&mut Self, &::hegel::TestCase)> {
-                vec![ #( Self::#rule_names ),* ]
+            fn rules(&self) -> Vec<::hegel::stateful::Rule<Self>> {
+                vec![ #( ::hegel::stateful::Rule::new(#rule_name_strings, Self::#rule_names) ),* ]
             }
             fn invariants(&self) -> Vec<fn(&Self, &::hegel::TestCase)> {
                 vec![ #( Self::#invariant_names ),* ]

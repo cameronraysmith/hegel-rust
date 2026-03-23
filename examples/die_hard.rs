@@ -11,34 +11,34 @@ struct DieHard {
 #[hegel::state_machine]
 impl DieHard {
     #[rule]
-    fn fill_small(&mut self, _tc: &TestCase) {
+    fn fill_small(&mut self, _tc: TestCase) {
         self.small = 3;
     }
 
     #[rule]
-    fn fill_big(&mut self, _tc: &TestCase) {
+    fn fill_big(&mut self, _tc: TestCase) {
         self.big = 5;
     }
 
     #[rule]
-    fn empty_small(&mut self, _tc: &TestCase) {
+    fn empty_small(&mut self, _tc: TestCase) {
         self.small = 0;
     }
 
     #[rule]
-    fn empty_big(&mut self, _tc: &TestCase) {
+    fn empty_big(&mut self, _tc: TestCase) {
         self.big = 0;
     }
 
     #[rule]
-    fn pour_small_into_big(&mut self, _tc: &TestCase) {
+    fn pour_small_into_big(&mut self, _tc: TestCase) {
         let big = self.big;
         self.big = min(5, self.big + self.small);
         self.small -= self.big - big;
     }
 
     #[rule]
-    fn pour_big_into_small(&mut self, _tc: &TestCase) {
+    fn pour_big_into_small(&mut self, _tc: TestCase) {
         let small = self.small;
         self.small = min(3, self.small + self.big);
         self.big -= self.small - small;

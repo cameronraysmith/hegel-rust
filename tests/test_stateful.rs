@@ -17,25 +17,25 @@ struct Linear {
 #[hegel::state_machine]
 impl Linear {
     #[rule]
-    fn zero(&mut self, tc: &TestCase) {
+    fn zero(&mut self, tc: TestCase) {
         tc.assume(self.state == 0);
         self.state += 1;
     }
 
     #[rule]
-    fn one(&mut self, tc: &TestCase) {
+    fn one(&mut self, tc: TestCase) {
         tc.assume(self.state == 1);
         self.state += 1;
     }
 
     #[rule]
-    fn two(&mut self, tc: &TestCase) {
+    fn two(&mut self, tc: TestCase) {
         tc.assume(self.state == 2);
         self.state += 1;
     }
 
     #[rule]
-    fn three(&mut self, tc: &TestCase) {
+    fn three(&mut self, tc: TestCase) {
         tc.assume(self.state == 3);
         self.state += 1;
     }
@@ -70,7 +70,7 @@ struct TestConsumeMachine {
 #[hegel::state_machine]
 impl TestConsumeMachine {
     #[rule]
-    fn draw(&mut self, _tc: &TestCase) {
+    fn draw(&mut self, _tc: TestCase) {
         let x = self.numbers.draw();
         assert!(*x != self.consumed);
     }
@@ -102,7 +102,7 @@ struct TestDrawDomainMachine {
 #[hegel::state_machine]
 impl TestDrawDomainMachine {
     #[rule]
-    fn draw(&mut self, _tc: &TestCase) {
+    fn draw(&mut self, _tc: TestCase) {
         let x = self.variables.draw();
         assert!(self.domain.contains(x));
     }

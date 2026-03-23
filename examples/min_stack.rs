@@ -68,14 +68,13 @@ struct MinStackTest {
 #[hegel::state_machine]
 impl MinStackTest {
     #[rule]
-    fn push(&mut self, tc: &TestCase) {
+    fn push(&mut self, tc: TestCase) {
         let element = tc.draw(integers::<i32>());
-        tc.note(&format!("push {}", element));
         self.stack.push(element);
     }
 
     #[rule]
-    fn pop(&mut self, tc: &TestCase) {
+    fn pop(&mut self, tc: TestCase) {
         let element = self.stack.pop();
         match element {
             Some(element) => {

@@ -912,10 +912,6 @@ fn run_test_case<F: FnMut(TestCase)>(
                     );
                     eprintln!("{}", msg);
 
-                    for value in tc.take_output() {
-                        eprintln!("{}", value);
-                    }
-
                     if backtrace.status() == BacktraceStatus::Captured {
                         let is_full = std::env::var("RUST_BACKTRACE")
                             .map(|v| v == "full")

@@ -1,13 +1,25 @@
 use crate::TestCase;
 use crate::cbor_utils::cbor_map;
-use crate::generators::{integers, sampled_from};
+use crate::generators::integers;
 use crate::test_case::{ASSUME_FAIL_STRING, STOP_TEST_STRING};
 use ciborium::Value;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
-pub type Rule = Box<dyn FnMut()>;
+pub struct Rule<M: ?Sized> {
+    pub name: String,
+    pub apply: fn(&mut M, TestCase),
+}
+
+impl<M> Rule<M> {
+    pub fn new(name: &str, apply: fn(&mut M, TestCase)) -> Self {
+        Rule {
+            name: name.to_string(),
+            apply,
+        }
+    }
+}
 
 pub struct Variables<T> {
     pool_id: i128,
@@ -82,7 +94,7 @@ pub fn variables<T>(tc: &TestCase) -> Variables<T> {
 }
 
 pub trait StateMachine {
-    fn rules(&self) -> Vec<fn(&mut Self, &TestCase)>;
+    fn rules(&self) -> Vec<Rule<Self>>;
     fn invariants(&self) -> Vec<fn(&Self, &TestCase)>;
 }
 
@@ -110,7 +122,7 @@ pub fn run(mut m: impl StateMachine, tc: TestCase) {
         panic!("Cannot run a machine with no rules.");
     }
 
-    let rules = &sampled_from(rules);
+    let rule_index = integers::<usize>().min_value(0).max_value(rules.len() - 1);
 
     tc.note("Initial invariant check.");
     check_invariants(&m, &tc);
@@ -119,20 +131,24 @@ pub fn run(mut m: impl StateMachine, tc: TestCase) {
     // we almost always run the maximum amount of steps, but allows us the possibility of shrinking
     // to a smaller number of steps.
     let max_steps = 50;
-    let unbounded_step_cap = tc.draw(integers::<i64>().min_value(1));
+    let unbounded_step_cap = tc.draw_silent(integers::<i64>().min_value(1));
     let step_cap = min(unbounded_step_cap, max_steps);
 
     let mut steps_run_successfully = 0;
     let mut steps_attempted = 0;
+    let mut step = 0;
 
     while steps_run_successfully < step_cap
         && (steps_attempted < 10 * step_cap
             || (steps_run_successfully == 0 && steps_attempted < 1000))
     {
-        let rule = tc.draw(rules);
+        step += 1;
+        let rule = &rules[tc.draw_silent(&rule_index)];
+        tc.note(&format!("Step {}: {}", step, rule.name));
 
         // We only need this because AssertUnwindSafe expects a closure.
-        let thunk = || rule(&mut m, &tc);
+        let rule_tc = tc.child(2);
+        let thunk = || (rule.apply)(&mut m, rule_tc);
         let result = catch_unwind(AssertUnwindSafe(thunk));
 
         steps_attempted += 1;
@@ -147,6 +163,7 @@ pub fn run(mut m: impl StateMachine, tc: TestCase) {
                     // Server ran out of data — this test case is done.
                     break;
                 } else if msg != ASSUME_FAIL_STRING {
+                    tc.note("Rule stopped early due to violated assumption.");
                     resume_unwind(e);
                 }
             }

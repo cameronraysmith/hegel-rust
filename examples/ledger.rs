@@ -47,14 +47,14 @@ struct LedgerTest {
 #[hegel::state_machine]
 impl LedgerTest {
     #[rule]
-    fn create_account(&mut self, tc: &TestCase) {
+    fn create_account(&mut self, tc: TestCase) {
         let account = tc.draw(text().min_size(1));
         tc.note(&format!("create account '{}'", account.clone()));
         self.accounts.add(account);
     }
 
     #[rule]
-    fn credit(&mut self, tc: &TestCase) {
+    fn credit(&mut self, tc: TestCase) {
         let account = self.accounts.draw().clone();
         let amount = tc.draw(integers::<i64>().min_value(0).max_value(LIMIT));
         tc.note(&format!("credit '{}' with {}", account.clone(), amount));
@@ -62,7 +62,7 @@ impl LedgerTest {
     }
 
     #[rule]
-    fn transfer(&mut self, tc: &TestCase) {
+    fn transfer(&mut self, tc: TestCase) {
         let from = self.accounts.draw().clone();
         let to = self.accounts.draw().clone();
         let amount = tc.draw(integers::<i64>().min_value(0).max_value(LIMIT));

@@ -10,19 +10,19 @@ struct IntegerStack {
 #[hegel::state_machine]
 impl IntegerStack {
     #[rule]
-    fn push(&mut self, tc: &TestCase) {
+    fn push(&mut self, tc: TestCase) {
         let integers = integers::<i32>;
         let element = tc.draw(integers());
         self.stack.push(element);
     }
 
     #[rule]
-    fn pop(&mut self, _: &TestCase) {
+    fn pop(&mut self, _: TestCase) {
         self.stack.pop();
     }
 
     #[rule]
-    fn pop_push(&mut self, tc: &TestCase) {
+    fn pop_push(&mut self, tc: TestCase) {
         let integers = integers::<i32>;
         let element = tc.draw(integers());
         let initial = self.stack.clone();
@@ -33,7 +33,7 @@ impl IntegerStack {
     }
 
     #[rule]
-    fn push_pop(&mut self, tc: &TestCase) {
+    fn push_pop(&mut self, tc: TestCase) {
         let initial = self.stack.clone();
         let element = self.stack.pop();
         tc.assume(element.is_some());
