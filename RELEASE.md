@@ -1,4 +1,4 @@
-# RELEASE_TYPE: minor
+RELEASE_TYPE: minor
 
 This release makes a bunch of last-minute cleanups to places where our API obviously needed fixing that emerged during docs review.
 
