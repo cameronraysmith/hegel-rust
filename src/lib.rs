@@ -1,3 +1,5 @@
+//! Hegel is a property-based testing library for Rust. Hegel is based on [Hypothesis](https://github.com/hypothesisworks/hypothesis), using the [Hegel](https://hegel.dev/) protocol.
+//!
 //! # Getting started with Hegel for Rust
 //!
 //! This guide walks you through the basics of installing Hegel and writing your first tests.
@@ -8,11 +10,10 @@
 //!
 //! ## Install Hegel
 //!
-//! Add `hegel-rust` to your `Cargo.toml` as a dev dependency:
+//! Add `hegel-rust` to your `Cargo.toml` as a dev dependency using cargo:
 //!
-//! ```toml
-//! [dev-dependencies]
-//! hegeltest = "0.1.0"
+//! ```bash
+//! cargo add --dev hegeltest
 //! ```
 //!
 //! ## Write your first test
@@ -211,6 +212,10 @@ pub use test_case::{__IsTestCase, __assert_is_test_case, generate_from_schema, g
 pub use antithesis::TestLocation;
 pub use hegel_macros::DefaultGenerator;
 pub use hegel_macros::composite;
+
+/// Derive a [`StateMachine`](crate::stateful::StateMachine) implementation from an `impl` block.
+///
+/// See the [`stateful`] module docs for more information.
 pub use hegel_macros::state_machine;
 pub use hegel_macros::test;
 #[doc(hidden)]

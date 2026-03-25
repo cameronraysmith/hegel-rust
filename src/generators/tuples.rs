@@ -3,6 +3,70 @@ use crate::cbor_utils::{cbor_array, cbor_map};
 use ciborium::Value;
 use std::marker::PhantomData;
 
+/// Creates a tuple generator from 0–12 component generators.
+///
+/// # Examples
+///
+/// ```no_run
+/// use hegel::generators::{tuples, integers, booleans, text};
+///
+/// // 0-tuple (unit)
+/// let gen0 = tuples!();
+///
+/// // 1-tuple
+/// let gen1 = tuples!(integers::<i32>());
+///
+/// // 2-tuple
+/// let gen2 = tuples!(integers::<i32>(), booleans());
+///
+/// // 3-tuple
+/// let gen3 = tuples!(integers::<i32>(), booleans(), text());
+/// ```
+#[macro_export]
+macro_rules! tuples {
+    () => {
+        $crate::generators::tuples0()
+    };
+    ($g1:expr $(,)?) => {
+        $crate::generators::tuples1($g1)
+    };
+    ($g1:expr, $g2:expr $(,)?) => {
+        $crate::generators::tuples2($g1, $g2)
+    };
+    ($g1:expr, $g2:expr, $g3:expr $(,)?) => {
+        $crate::generators::tuples3($g1, $g2, $g3)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr $(,)?) => {
+        $crate::generators::tuples4($g1, $g2, $g3, $g4)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr $(,)?) => {
+        $crate::generators::tuples5($g1, $g2, $g3, $g4, $g5)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr $(,)?) => {
+        $crate::generators::tuples6($g1, $g2, $g3, $g4, $g5, $g6)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr, $g7:expr $(,)?) => {
+        $crate::generators::tuples7($g1, $g2, $g3, $g4, $g5, $g6, $g7)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr, $g7:expr, $g8:expr $(,)?) => {
+        $crate::generators::tuples8($g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr, $g7:expr, $g8:expr, $g9:expr $(,)?) => {
+        $crate::generators::tuples9($g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr, $g7:expr, $g8:expr, $g9:expr, $g10:expr $(,)?) => {
+        $crate::generators::tuples10($g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr, $g7:expr, $g8:expr, $g9:expr, $g10:expr, $g11:expr $(,)?) => {
+        $crate::generators::tuples11($g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $g11)
+    };
+    ($g1:expr, $g2:expr, $g3:expr, $g4:expr, $g5:expr, $g6:expr, $g7:expr, $g8:expr, $g9:expr, $g10:expr, $g11:expr, $g12:expr $(,)?) => {
+        $crate::generators::tuples12(
+            $g1, $g2, $g3, $g4, $g5, $g6, $g7, $g8, $g9, $g10, $g11, $g12,
+        )
+    };
+}
+
 macro_rules! impl_tuple {
     ($name:ident, $fn_name:ident, $(($idx:tt, $field:ident, $G:ident, $T:ident)),+) => {
         pub struct $name<$($G,)+ $($T,)+> {
@@ -45,6 +109,7 @@ macro_rules! impl_tuple {
             }
         }
 
+        #[doc(hidden)]
         #[allow(clippy::too_many_arguments)]
         pub fn $fn_name<$($T,)+ $($G: Generator<$T>,)+>(
             $($field: $G,)+
@@ -67,6 +132,26 @@ macro_rules! impl_tuple {
     };
 }
 
+/// Generator for the unit type `()`. Created by [`tuples0()`].
+pub struct Tuple0Generator;
+
+impl Generator<()> for Tuple0Generator {
+    fn do_draw(&self, _tc: &TestCase) {}
+}
+
+#[doc(hidden)]
+pub fn tuples0() -> Tuple0Generator {
+    Tuple0Generator
+}
+
+impl DefaultGenerator for () {
+    type Generator = Tuple0Generator;
+    fn default_generator() -> Self::Generator {
+        tuples0()
+    }
+}
+
+impl_tuple!(Tuple1Generator, tuples1, (0, gen1, G1, T1));
 impl_tuple!(
     Tuple2Generator,
     tuples2,

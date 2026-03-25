@@ -4,11 +4,44 @@ use common::utils::{assert_all_examples, find_any};
 use hegel::TestCase;
 use hegel::generators::{self, Generator};
 
+// tuples0 (unit)
+
+#[hegel::test]
+fn test_tuple0_basic(tc: TestCase) {
+    let _: () = tc.draw(generators::tuples!());
+}
+
+#[test]
+fn test_tuple0_all_examples() {
+    assert_all_examples(generators::tuples!(), |_| true);
+}
+
+#[test]
+fn test_tuple0_default_generator() {
+    assert_all_examples(generators::default::<()>(), |_| true);
+}
+
+// tuples1
+
+#[hegel::test]
+fn test_tuple1_basic(tc: TestCase) {
+    let (a,): (i32,) = tc.draw(generators::tuples!(generators::integers(),));
+    let _ = a;
+}
+
+#[hegel::test]
+fn test_tuple1_respects_bounds(tc: TestCase) {
+    let (a,): (i32,) = tc.draw(generators::tuples!(
+        generators::integers().min_value(0).max_value(10),
+    ));
+    assert!((0..=10).contains(&a));
+}
+
 // tuples2
 
 #[hegel::test]
 fn test_tuple2_basic(tc: TestCase) {
-    let (a, b): (i32, bool) = tc.draw(generators::tuples2(
+    let (a, b): (i32, bool) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::booleans(),
     ));
@@ -17,7 +50,7 @@ fn test_tuple2_basic(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple2_respects_bounds(tc: TestCase) {
-    let (a, b): (i32, i32) = tc.draw(generators::tuples2(
+    let (a, b): (i32, i32) = tc.draw(generators::tuples!(
         generators::integers().min_value(0).max_value(10),
         generators::integers().min_value(100).max_value(200),
     ));
@@ -29,7 +62,7 @@ fn test_tuple2_respects_bounds(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple3_basic(tc: TestCase) {
-    let (a, b, c): (i32, String, bool) = tc.draw(generators::tuples3(
+    let (a, b, c): (i32, String, bool) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::text(),
         generators::booleans(),
@@ -39,7 +72,7 @@ fn test_tuple3_basic(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple3_respects_bounds(tc: TestCase) {
-    let (a, b, c): (i32, i32, i32) = tc.draw(generators::tuples3(
+    let (a, b, c): (i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers().min_value(0).max_value(10),
         generators::integers().min_value(20).max_value(30),
         generators::integers().min_value(40).max_value(50),
@@ -53,7 +86,7 @@ fn test_tuple3_respects_bounds(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple4_basic(tc: TestCase) {
-    let (a, b, c, d): (i32, i32, i32, i32) = tc.draw(generators::tuples4(
+    let (a, b, c, d): (i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers().min_value(0).max_value(10),
         generators::integers().min_value(0).max_value(10),
         generators::integers().min_value(0).max_value(10),
@@ -69,7 +102,7 @@ fn test_tuple4_basic(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple5_basic(tc: TestCase) {
-    let t: (i32, i32, i32, i32, i32) = tc.draw(generators::tuples5(
+    let t: (i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -83,7 +116,7 @@ fn test_tuple5_basic(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple6(tc: TestCase) {
-    let _: (i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples6(
+    let _: (i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -95,7 +128,7 @@ fn test_tuple6(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple7(tc: TestCase) {
-    let _: (i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples7(
+    let _: (i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -108,7 +141,7 @@ fn test_tuple7(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple8(tc: TestCase) {
-    let _: (i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples8(
+    let _: (i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -122,7 +155,7 @@ fn test_tuple8(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple9(tc: TestCase) {
-    let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples9(
+    let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -137,7 +170,7 @@ fn test_tuple9(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple10(tc: TestCase) {
-    let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples10(
+    let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -153,7 +186,7 @@ fn test_tuple10(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple11(tc: TestCase) {
-    let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples11(
+    let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32) = tc.draw(generators::tuples!(
         generators::integers(),
         generators::integers(),
         generators::integers(),
@@ -171,7 +204,7 @@ fn test_tuple11(tc: TestCase) {
 #[hegel::test]
 fn test_tuple12(tc: TestCase) {
     let _: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32) =
-        tc.draw(generators::tuples12(
+        tc.draw(generators::tuples!(
             generators::integers(),
             generators::integers(),
             generators::integers(),
@@ -191,7 +224,7 @@ fn test_tuple12(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple2_with_mapped_elements(tc: TestCase) {
-    let (a, b): (i32, i32) = tc.draw(generators::tuples2(
+    let (a, b): (i32, i32) = tc.draw(generators::tuples!(
         generators::integers::<i32>()
             .min_value(i32::MIN / 2)
             .max_value(i32::MAX / 2)
@@ -209,7 +242,7 @@ fn test_tuple2_with_mapped_elements(tc: TestCase) {
 
 #[hegel::test]
 fn test_tuple_mixed_types(tc: TestCase) {
-    let (n, s, b, f): (i32, String, bool, f64) = tc.draw(generators::tuples4(
+    let (n, s, b, f): (i32, String, bool, f64) = tc.draw(generators::tuples!(
         generators::integers().min_value(0).max_value(100),
         generators::text().max_size(10),
         generators::booleans(),
@@ -225,7 +258,7 @@ fn test_tuple_mixed_types(tc: TestCase) {
 #[hegel::test]
 fn test_vec_of_tuples(tc: TestCase) {
     let vec: Vec<(i32, bool)> = tc.draw(
-        generators::vecs(generators::tuples2(
+        generators::vecs(generators::tuples!(
             generators::integers::<i32>().min_value(0).max_value(100),
             generators::booleans(),
         ))
@@ -241,11 +274,11 @@ fn test_vec_of_tuples(tc: TestCase) {
 #[test]
 fn test_tuple2_can_find_both_true_and_false() {
     find_any(
-        generators::tuples2(generators::booleans(), generators::booleans()),
+        generators::tuples!(generators::booleans(), generators::booleans()),
         |(a, b)| *a && !*b,
     );
     find_any(
-        generators::tuples2(generators::booleans(), generators::booleans()),
+        generators::tuples!(generators::booleans(), generators::booleans()),
         |(a, b)| !*a && *b,
     );
 }
@@ -255,7 +288,7 @@ fn test_tuple2_can_find_both_true_and_false() {
 #[test]
 fn test_tuple2_all_examples_in_bounds() {
     assert_all_examples(
-        generators::tuples2(
+        generators::tuples!(
             generators::integers::<i32>().min_value(0).max_value(10),
             generators::integers::<i32>().min_value(0).max_value(10),
         ),
@@ -266,7 +299,7 @@ fn test_tuple2_all_examples_in_bounds() {
 #[test]
 fn test_tuple3_all_examples_in_bounds() {
     assert_all_examples(
-        generators::tuples3(
+        generators::tuples!(
             generators::integers::<i32>().min_value(-5).max_value(5),
             generators::integers::<i32>().min_value(10).max_value(20),
             generators::integers::<i32>().min_value(100).max_value(200),

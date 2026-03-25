@@ -77,26 +77,25 @@ pub fn derive_generator(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Mark a test function as a Hegel property-based test.
+/// The main entrypoint into Hegel.
 ///
-/// Wraps the function body in `Hegel::new(|tc: TestCase| { ... }).run()`. The function
-/// must take exactly one parameter of type `hegel::TestCase`, and use `tc.draw()` to
-/// generate values. The `#[test]` attribute is added automatically and must not be
-/// present on the function.
+/// The function must take exactly one parameter of type `hegel::TestCase`. The test case can be
+/// used to generate values via `tc.draw()`.
 ///
-/// Optionally accepts settings as `key = value` pairs corresponding to
-/// methods on [`Settings`](hegel::Settings):
+/// The `#[test]` attribute is added automatically and must not be present on the function.
 ///
 /// ```ignore
 /// #[hegel::test]
-/// fn my_test(tc: hegel::TestCase) {
-///     let x: i32 = tc.draw(generators::integers());
+/// fn my_test(tc: TestCase) {
+///     let x: i32 = tc.draw(integers());
 ///     assert!(x + 0 == x);
 /// }
 ///
+/// You can set settings with on `hegel::test`, corresponding to methods on [`Settings`](hegel::Settings):
+///
 /// #[hegel::test(test_cases = 500)]
-/// fn my_configured_test(tc: hegel::TestCase) {
-///     let x: i32 = tc.draw(generators::integers());
+/// fn test_runs_many_more_times(tc: TestCase) {
+///     let x: i32 = tc.draw(integers());
 ///     assert!(x + 0 == x);
 /// }
 /// ```
@@ -135,61 +134,6 @@ pub fn composite(_attr: TokenStream, item: TokenStream) -> TokenStream {
     composite::expand_composite(input).into()
 }
 
-/// Derive a [`StateMachine`](hegel::stateful::StateMachine) implementation from an `impl` block.
-///
-/// Methods annotated with `#[rule]` become rules (actions applied to the state machine)
-/// and methods annotated with `#[invariant]` become invariants (checked after each
-/// successful rule). Rules take `&mut self` and a `TestCase`; invariants take `&self`
-/// and a `TestCase`.
-///
-/// ```ignore
-/// use hegel::TestCase;
-/// use hegel::generators::integers;
-///
-/// struct IntegerStack {
-///     stack: Vec<i32>,
-/// }
-///
-/// #[hegel::state_machine]
-/// impl IntegerStack {
-///     #[rule]
-///     fn push(&mut self, tc: TestCase) {
-///         let element = tc.draw(integers::<i32>());
-///         self.stack.push(element);
-///     }
-///
-///     #[rule]
-///     fn pop(&mut self, _: TestCase) {
-///         self.stack.pop();
-///     }
-///
-///     #[rule]
-///     fn pop_push(&mut self, tc: TestCase) {
-///         let element = tc.draw(integers::<i32>());
-///         let initial = self.stack.clone();
-///         self.stack.push(element);
-///         let popped = self.stack.pop().unwrap();
-///         assert_eq!(popped, element);
-///         assert_eq!(self.stack, initial);
-///     }
-///
-///     #[rule]
-///     fn push_pop(&mut self, tc: TestCase) {
-///         let initial = self.stack.clone();
-///         let element = self.stack.pop();
-///         tc.assume(element.is_some());
-///         let element = element.unwrap();
-///         self.stack.push(element);
-///         assert_eq!(self.stack, initial);
-///     }
-/// }
-///
-/// #[hegel::test]
-/// fn test_integer_stack(tc: TestCase) {
-///     let stack = IntegerStack { stack: Vec::new() };
-///     hegel::stateful::run(stack, tc);
-/// }
-/// ```
 #[proc_macro_attribute]
 pub fn state_machine(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = parse_macro_input!(item as ItemImpl);
