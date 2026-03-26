@@ -1,3 +1,3 @@
-RELEASE_TYPE: patch
+RELEASE_TYPE: minor
 
-This patch removes the type-level restriction on invariants mutating machine state.
+This revision removes the type-level restriction on invariants mutating machine state.
