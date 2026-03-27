@@ -1,3 +1,3 @@
 RELEASE_TYPE: patch
 
-Add generators for Duration and Instant
+Add generator for Duration

@@ -1,6 +1,6 @@
 use super::{BasicGenerator, Generator, TestCase};
 use crate::cbor_utils::cbor_map;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Generator for [`Duration`] values. Created by [`durations()`].
 ///
@@ -74,64 +74,6 @@ pub fn durations() -> DurationGenerator {
     DurationGenerator {
         min_nanos: 0,
         max_nanos: u64::MAX,
-    }
-}
-
-/// Generator for [`Instant`] values. Created by [`instants()`].
-///
-/// Generates instants by adding a random [`Duration`] offset to a fixed base
-/// instant captured when the generator is created. The offsets are deterministic
-/// (controlled by the test engine), while the base varies between runs.
-pub struct InstantGenerator {
-    base: Instant,
-    max_offset_nanos: u64,
-}
-
-impl InstantGenerator {
-    /// Set the maximum offset from the base instant (inclusive).
-    pub fn max_offset(mut self, max: Duration) -> Self {
-        self.max_offset_nanos = duration_to_nanos(max);
-        self
-    }
-}
-
-impl Generator<Instant> for InstantGenerator {
-    fn do_draw(&self, tc: &TestCase) -> Instant {
-        let schema = cbor_map! {
-            "type" => "integer",
-            "min_value" => 0u64,
-            "max_value" => self.max_offset_nanos
-        };
-        let nanos: u64 = super::generate_from_schema(tc, &schema);
-        self.base + Duration::from_nanos(nanos)
-    }
-}
-
-/// Generate [`Instant`] values.
-///
-/// Produces instants offset from a fixed base (`Instant::now()` at call time)
-/// by a random duration. The default maximum offset is one hour. Use
-/// `max_offset` to change it.
-///
-/// The base is captured once when `instants()` is called, so all generated
-/// values within a test share the same reference point. The offsets are
-/// deterministic and shrinkable.
-///
-/// # Example
-///
-/// ```no_run
-/// use std::time::Duration;
-///
-/// #[hegel::test]
-/// fn my_test(tc: hegel::TestCase) {
-///     let i = tc.draw(hegel::generators::instants()
-///         .max_offset(Duration::from_secs(3600)));
-/// }
-/// ```
-pub fn instants() -> InstantGenerator {
-    InstantGenerator {
-        base: Instant::now(),
-        max_offset_nanos: 3_600_000_000_000,
     }
 }
 

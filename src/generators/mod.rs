@@ -53,7 +53,7 @@ pub use strings::{
     IpAddressGenerator, RegexGenerator, TextGenerator, TimeGenerator, UrlGenerator, binary, dates,
     datetimes, domains, emails, from_regex, ip_addresses, text, times, urls,
 };
-pub use time::{DurationGenerator, InstantGenerator, durations, instants};
+pub use time::{DurationGenerator, durations};
 #[doc(hidden)]
 pub use tuples::{
     tuples0, tuples1, tuples2, tuples3, tuples4, tuples5, tuples6, tuples7, tuples8, tuples9,
