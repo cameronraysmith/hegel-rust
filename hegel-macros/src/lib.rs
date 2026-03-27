@@ -8,7 +8,8 @@ mod utils;
 use proc_macro::TokenStream;
 use syn::{Data, DeriveInput, ItemFn, ItemImpl, parse_macro_input};
 
-// docs are in hegel's lib.rs so that we get intra-doc links
+// documentation for hegel-macros lives in hegel's lib.rs so that we get proper intra-doc links.
+
 #[proc_macro_derive(DefaultGenerator)]
 pub fn derive_generator(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -22,13 +23,11 @@ pub fn derive_generator(input: TokenStream) -> TokenStream {
     }
 }
 
-// docs are in hegel's lib.rs so that we get intra-doc links
 #[proc_macro_attribute]
 pub fn test(attr: TokenStream, item: TokenStream) -> TokenStream {
     hegel_test::expand_test(attr.into(), item.into()).into()
 }
 
-// docs are in hegel's lib.rs so that we get intra-doc links
 #[proc_macro_attribute]
 pub fn composite(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);

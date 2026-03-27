@@ -227,7 +227,7 @@ pub use antithesis::TestLocation;
 ///
 /// ```ignore
 /// use hegel::DefaultGenerator;
-/// use hegel::generators::{self, DefaultGenerator as _, Generator as _};
+/// use hegel::generators::{self as gs, DefaultGenerator as _, Generator as _};
 ///
 /// #[derive(DefaultGenerator)]
 /// struct Person {
@@ -237,8 +237,8 @@ pub use antithesis::TestLocation;
 ///
 /// #[hegel::test]
 /// fn generates_people(tc: hegel::TestCase) {
-///     let generator = generators::default::<Person>()
-///         .age(generators::integers::<u32>().min_value(0).max_value(120));
+///     let generator = gs::default::<Person>()
+///         .age(gs::integers::<u32>().min_value(0).max_value(120));
 ///     let person: Person = tc.draw(generator);
 /// }
 /// ```
@@ -247,7 +247,7 @@ pub use antithesis::TestLocation;
 ///
 /// ```ignore
 /// use hegel::DefaultGenerator;
-/// use hegel::generators::{self, DefaultGenerator as _, Generator as _};
+/// use hegel::generators::{self as gs, DefaultGenerator as _, Generator as _};
 ///
 /// #[derive(DefaultGenerator)]
 /// enum Status {
@@ -258,11 +258,11 @@ pub use antithesis::TestLocation;
 ///
 /// #[hegel::test]
 /// fn generates_statuses(tc: hegel::TestCase) {
-///     let generator = generators::default::<Status>()
+///     let generator = gs::default::<Status>()
 ///         .Active(
-///             generators::default::<Status>()
+///             gs::default::<Status>()
 ///                 .default_Active()
-///                 .since(generators::text().max_size(20))
+///                 .since(gs::text().max_size(20))
 ///         );
 ///     let status: Status = tc.draw(generator);
 /// }
@@ -277,11 +277,11 @@ pub use hegel_macros::DefaultGenerator;
 /// return type.
 ///
 /// ```ignore
-/// use hegel::generators;
+/// use hegel::generators as gs;
 ///
 /// #[hegel::composite]
 /// fn sorted_vec(tc: hegel::TestCase, min_len: usize) -> Vec<i32> {
-///     let mut v: Vec<i32> = tc.draw(generators::vecs(generators::integers()).min_size(min_len));
+///     let mut v: Vec<i32> = tc.draw(gs::vecs(gs::integers()).min_size(min_len));
 ///     v.sort();
 ///     v
 /// }
@@ -316,6 +316,7 @@ pub use hegel_macros::state_machine;
 /// ```
 ///
 /// You can set settings using attributes on [`test`], corresponding to methods on [`Settings`]:
+///
 /// ```ignore
 /// #[hegel::test(test_cases = 500)]
 /// fn test_runs_many_more_times(tc: TestCase) {
