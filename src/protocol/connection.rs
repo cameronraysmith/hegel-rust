@@ -44,6 +44,9 @@ impl Connection {
                     Err(_) => {
                         // Stream closed or error — mark server as exited and stop.
                         conn_for_reader.server_exited.store(true, Ordering::SeqCst);
+                        // Drop all senders so any thread blocked on channel.recv()
+                        // unblocks with RecvError instead of hanging forever.
+                        conn_for_reader.channel_senders.lock().unwrap().clear();
                         break;
                     }
                 }
@@ -100,5 +103,31 @@ impl Connection {
             Err(_) if self.server_has_exited() => Err(Self::server_crashed_error()),
             Err(e) => Err(e),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixStream;
+
+    /// Verify that when the reader stream closes (simulating server crash),
+    /// channels unblock promptly instead of hanging forever.
+    #[test]
+    fn test_channel_unblocks_on_reader_close() {
+        // Create a connection whose reader returns EOF immediately.
+        // This simulates the server process dying.
+        let (_, write_end) = UnixStream::pair().unwrap();
+        let conn = Connection::new(Box::new(std::io::empty()), Box::new(write_end));
+
+        let mut channel = conn.new_channel();
+
+        // Give the background reader a moment to hit EOF and clear senders
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // receive_request should return an error, not hang
+        let result = channel.receive_request();
+        assert!(result.is_err());
+        assert!(conn.server_has_exited());
     }
 }
