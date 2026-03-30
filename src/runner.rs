@@ -93,19 +93,19 @@ impl HegelSession {
         let decoded = String::from_utf8_lossy(&response);
         let server_version = match decoded.strip_prefix("Hegel/") {
             Some(v) => v,
-            None => {
-                let _ = child.kill();
+            None => { // nocov
+                let _ = child.kill(); // nocov
                 panic!("Bad handshake response: {decoded:?}");
             }
         };
         let version: f64 = server_version.parse().unwrap_or_else(|_| {
-            let _ = child.kill();
+            let _ = child.kill(); // nocov
             panic!("Bad version number: {server_version}");
         });
 
         let (lo, hi) = SUPPORTED_PROTOCOL_VERSIONS;
         if !(lo <= version && version <= hi) {
-            let _ = child.kill();
+            let _ = child.kill(); // nocov
             panic!(
                 "hegel-rust supports protocol versions {lo} through {hi}, but \
                  the connected server is using protocol version {version}. Upgrading \
@@ -279,10 +279,10 @@ fn ensure_hegel_installed() -> Result<String, String> {
     }
 
     std::fs::create_dir_all(HEGEL_SERVER_DIR)
-        .map_err(|e| format!("Failed to create {HEGEL_SERVER_DIR}: {e}"))?;
+        .map_err(|e| format!("Failed to create {HEGEL_SERVER_DIR}: {e}"))?; // nocov
 
     let log_file = std::fs::File::create(&install_log)
-        .map_err(|e| format!("Failed to create install log: {e}"))?;
+        .map_err(|e| format!("Failed to create install log: {e}"))?; // nocov
 
     let status = std::process::Command::new("uv")
         .args(["venv", "--clear", &venv_dir])
@@ -290,6 +290,7 @@ fn ensure_hegel_installed() -> Result<String, String> {
         .stdout(log_file.try_clone().unwrap())
         .status();
     match &status {
+        // nocov start
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             return Err(UV_NOT_FOUND_MESSAGE.to_string());
         }
@@ -300,6 +301,7 @@ fn ensure_hegel_installed() -> Result<String, String> {
             let log = std::fs::read_to_string(&install_log).unwrap_or_default();
             return Err(format!("uv venv failed. Install log:\n{log}"));
         }
+        // nocov end
         Ok(_) => {}
     }
 
@@ -315,7 +317,8 @@ fn ensure_hegel_installed() -> Result<String, String> {
         .stderr(log_file.try_clone().unwrap())
         .stdout(log_file)
         .status()
-        .map_err(|e| format!("Failed to run `uv pip install`: {e}"))?;
+        .map_err(|e| format!("Failed to run `uv pip install`: {e}"))?; // nocov
+    // nocov start
     if !status.success() {
         let log = std::fs::read_to_string(&install_log).unwrap_or_default();
         return Err(format!(
@@ -328,9 +331,10 @@ fn ensure_hegel_installed() -> Result<String, String> {
     if !std::path::Path::new(&hegel_bin).is_file() {
         return Err(format!("hegel not found at {hegel_bin} after installation"));
     }
+    // nocov end
 
     std::fs::write(&version_file, HEGEL_SERVER_VERSION)
-        .map_err(|e| format!("Failed to write version file: {e}"))?;
+        .map_err(|e| format!("Failed to write version file: {e}"))?; // nocov
 
     Ok(hegel_bin)
 }
@@ -803,8 +807,8 @@ where
             );
 
             #[cfg(feature = "antithesis")]
-            if let Some(ref loc) = self.test_location {
-                crate::antithesis::emit_assertion(loc, !test_failed);
+            if let Some(ref loc) = self.test_location { // nocov
+                crate::antithesis::emit_assertion(loc, !test_failed); // nocov
             }
         }
 

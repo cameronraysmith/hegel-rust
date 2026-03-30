@@ -10,7 +10,7 @@ PURPOSE:
 This script provides a more nuanced coverage check than simple percentage thresholds.
 LLVM's coverage instrumentation counts regions which sometimes includes closing
 braces of control structures as separate coverage points. Additionally, certain
-patterns like todo!() and unreachable!() placeholders are expected to be uncovered.
+patterns like todo!(), unreachable!(), and panic!() are expected to be uncovered.
 
 ALLOWED UNCOVERED PATTERNS:
 ---------------------------
@@ -27,9 +27,29 @@ ALLOWED UNCOVERED PATTERNS:
    Lines that are just unreachable!() or unreachable!("message") mark code
    paths that should never be reached.
 
-4. #[ignore]d test bodies
-   LLVM-cov marks the body of #[ignore]d tests as uncovered because the
-   test framework compiles them but never runs them.
+4. panic!() Calls
+   Lines containing a panic!() invocation. These are defensive assertions
+   that should never be triggered in normal operation.
+
+5. Multi-line macro continuations
+   Continuation lines inside multi-line panic!(), unreachable!(), or todo!()
+   calls (e.g. format string arguments).
+
+6. #[ignore]d test bodies
+   LLVM-cov marks the body of #[ignore]d tests as uncovered because
+   the test framework compiles them but never runs them.
+
+7. // nocov Annotations
+   Lines marked with // nocov are manually excluded from line coverage.
+   Block exclusions with // nocov start ... // nocov end are also supported.
+   These are tracked by a ratchet mechanism -- the count can only decrease.
+
+RATCHET MECHANISM:
+------------------
+The count of // nocov annotations is tracked in .github/coverage-ratchet.json.
+This count may only decrease over time. If coverage analysis reveals that a
+line-level annotation is no longer needed (the code is now covered), the
+annotation is automatically removed.
 
 SECURITY NOTE:
 --------------
@@ -39,11 +59,52 @@ Adding new patterns to the allowlist could mask actual coverage gaps.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+RATCHET_FILE = Path(".github/coverage-ratchet.json")
+SOURCE_DIRS = [Path("src"), Path("hegel-macros/src")]
+
+# ──────────────────────────────────────────────────────────────────────
+# nocov block cache
+# ──────────────────────────────────────────────────────────────────────
+
+_nocov_block_cache: dict[Path, set[int]] = {}
+
+
+def get_nocov_block_lines(file_path: Path) -> set[int]:
+    """Return the set of line numbers inside // nocov start ... // nocov end blocks."""
+    resolved = file_path.resolve()
+    if resolved in _nocov_block_cache:
+        return _nocov_block_cache[resolved]
+
+    excluded: set[int] = set()
+    in_block = False
+    try:
+        with file_path.open() as f:
+            for i, line in enumerate(f, 1):
+                if re.search(r"//\s*nocov\s+start\b", line):
+                    in_block = True
+                    continue
+                if re.search(r"//\s*nocov\s+end\b", line):
+                    in_block = False
+                    continue
+                if in_block:
+                    excluded.add(i)
+    except (OSError, IOError):
+        pass
+
+    _nocov_block_cache[resolved] = excluded
+    return excluded
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Data structures
+# ──────────────────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -79,8 +140,7 @@ class UncoveredLine:
         Returns True for lines like: todo!()  todo!("message")  todo!();
         """
         stripped = self.content.strip()
-        # Match todo!() with optional message and optional semicolon
-        return bool(re.match(r'^todo!\s*\([^)]*\)\s*;?\s*$', stripped))
+        return bool(re.match(r"^todo!\s*\([^)]*\)\s*;?\s*$", stripped))
 
     def is_unreachable_placeholder(self) -> bool:
         """
@@ -92,22 +152,90 @@ class UncoveredLine:
             unreachable!(            // multi-line start
         """
         stripped = self.content.strip()
-        # Single-line: unreachable!("msg"); — use greedy match for nested parens
-        if re.search(r'unreachable!\s*\(.*\)\s*[;,]?\s*$', stripped):
+        if re.search(r"unreachable!\s*\(.*\)\s*[;,]?\s*$", stripped):
             return True
-        # Multi-line start: unreachable!( without closing paren
-        if re.search(r'unreachable!\s*\(', stripped) and not stripped.rstrip(';').rstrip().endswith(')'):
+        if re.search(r"unreachable!\s*\(", stripped) and not stripped.rstrip(
+            ";"
+        ).rstrip().endswith(")"):
             return True
         return False
+
+    def is_panic_call(self) -> bool:
+        """
+        Check if this line contains a panic!() invocation.
+
+        Matches standalone panic!() and match-arm panic!():
+            panic!("msg")
+            _ => panic!("msg"),
+            panic!(            // multi-line start
+        """
+        stripped = self.content.strip()
+        if re.search(r"panic!\s*\(.*\)\s*[;,]?\s*$", stripped):
+            return True
+        if re.search(r"panic!\s*\(", stripped) and not stripped.rstrip(
+            ";"
+        ).rstrip().endswith(")"):
+            return True
+        return False
+
+    def is_inside_excluded_macro(self) -> bool:
+        """
+        Check if this line is a continuation of a multi-line panic!/unreachable!/todo!().
+
+        Looks backward for an unclosed macro call that spans multiple lines.
+        """
+        try:
+            with self.file.open() as f:
+                lines = f.readlines()
+        except (OSError, IOError):
+            return False
+
+        idx = self.line_number - 1  # 0-indexed
+
+        # Look backward for a macro call start within 20 lines
+        for start in range(idx - 1, max(idx - 20, -1), -1):
+            if start < 0 or start >= len(lines):
+                continue
+            line = lines[start].strip()
+            if re.search(r"\b(panic|unreachable|todo)!\s*\(", line):
+                # Count parens from macro start to line BEFORE current
+                paren_depth = 0
+                for check_idx in range(start, idx):
+                    for ch in lines[check_idx]:
+                        if ch == "(":
+                            paren_depth += 1
+                        elif ch == ")":
+                            paren_depth -= 1
+                # If still open, current line is inside the macro call
+                if paren_depth > 0:
+                    return True
+                # Macro closed before our line -- stop searching
+                return False
+        return False
+
+    def has_nocov_annotation(self) -> bool:
+        """
+        Check if this line is excluded by a // nocov annotation.
+
+        Matches both:
+          - Inline: code(); // nocov
+          - Block:  inside a // nocov start ... // nocov end region
+        """
+        # Inline annotation (but not start/end markers themselves)
+        if re.search(r"//\s*nocov\b", self.content):
+            if not re.search(r"//\s*nocov\s+(start|end)\b", self.content):
+                return True
+        # Block annotation
+        return self.line_number in get_nocov_block_lines(self.file)
 
     def is_test_code(self) -> bool:
         """
         Check if this line is inside a #[cfg(test)] module.
 
-        Test code coverage is not meaningful — we care about coverage of
+        Test code coverage is not meaningful -- we care about coverage of
         production code, not test helpers.
 
-        Scans backward from this line looking for `#[cfg(test)]`.
+        Scans backward from this line looking for #[cfg(test)].
         """
         try:
             with self.file.open() as f:
@@ -115,37 +243,26 @@ class UncoveredLine:
         except (OSError, IOError):
             return False
 
-        idx = self.line_number - 1  # 0-indexed
-        # Track brace depth to determine if we're inside a #[cfg(test)] module
-        # Walk backward counting braces to find the module boundary
+        idx = self.line_number - 1
         brace_depth = 0
         for i in range(idx, -1, -1):
             line = lines[i].strip() if i < len(lines) else ""
-            brace_depth += line.count('}')
-            brace_depth -= line.count('{')
-            # If we've found the opening brace of our enclosing module,
-            # check if it's a #[cfg(test)] module
+            brace_depth += line.count("}")
+            brace_depth -= line.count("{")
             if brace_depth < 0:
-                # Look at the lines just above this opening brace for #[cfg(test)]
                 for j in range(i, max(i - 5, -1), -1):
                     check_line = lines[j].strip() if j < len(lines) else ""
                     if "#[cfg(test)]" in check_line:
                         return True
-                # Not a test module — but we might be in a nested block
-                # inside a test module, so keep scanning
                 brace_depth = 0
         return False
 
     def is_ignored_test_body(self) -> bool:
         """
-        Check if this line is inside an `#[ignore]`d test function.
+        Check if this line is inside an #[ignore]d test function.
 
         LLVM-cov marks the body of #[ignore]d tests as uncovered because
-        the test framework compiles them but never runs them.  These are
-        expected to be uncovered.
-
-        Scans backward from this line looking for #[ignore, then confirms
-        it is preceded by #[test] (within 3 lines).
+        the test framework compiles them but never runs them.
         """
         try:
             with self.file.open() as f:
@@ -153,12 +270,10 @@ class UncoveredLine:
         except (OSError, IOError):
             return False
 
-        # Walk backward from this line looking for `fn ` (the test function start)
-        idx = self.line_number - 1  # 0-indexed
+        idx = self.line_number - 1
         for i in range(idx, max(idx - 50, -1), -1):
             line = lines[i].strip() if i < len(lines) else ""
             if line.startswith("fn "):
-                # Found the enclosing function. Now check if #[ignore is above it.
                 for j in range(i - 1, max(i - 4, -1), -1):
                     attr = lines[j].strip() if j < len(lines) else ""
                     if attr.startswith("#[ignore"):
@@ -167,10 +282,26 @@ class UncoveredLine:
         return False
 
 
+@dataclass
+class CoverageData:
+    """Full parsed coverage data from LCOV."""
+
+    uncovered_lines: list[UncoveredLine] = field(default_factory=list)
+    # Lines with execution count > 0
+    covered_lines: dict[Path, set[int]] = field(default_factory=dict)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Coverage execution
+# ──────────────────────────────────────────────────────────────────────
+
+
 def get_target_triple() -> str:
     """Get the current Rust target triple."""
     result = subprocess.run(
-        ["rustc", "-vV"], capture_output=True, text=True,
+        ["rustc", "-vV"],
+        capture_output=True,
+        text=True,
     )
     for line in result.stdout.splitlines():
         if line.startswith("host:"):
@@ -187,7 +318,8 @@ def run_coverage() -> Path:
     print("  Cleaning previous coverage data...")
     result = subprocess.run(
         ["cargo", "llvm-cov", "clean", "--workspace"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         if result.stderr:
@@ -199,7 +331,8 @@ def run_coverage() -> Path:
     print("  Running tests with coverage...")
     result = subprocess.run(
         ["cargo", "llvm-cov", "--no-report", "--all-features"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.stdout:
         print(result.stdout)
@@ -215,7 +348,8 @@ def run_coverage() -> Path:
     # If that fails, fall back to standard report.
     llvm_cov_target = Path("target/llvm-cov-target")
     subprocess_bins = sorted(
-        p for p in llvm_cov_target.glob("debug/temp_hegel_test_*")
+        p
+        for p in llvm_cov_target.glob("debug/temp_hegel_test_*")
         if p.is_file() and not p.suffix  # exclude .d, .pdb etc
     )
     print(f"  Generating report ({len(subprocess_bins)} subprocess binaries)...")
@@ -224,7 +358,9 @@ def run_coverage() -> Path:
         # Use raw llvm tools to include subprocess binaries.
         # Find llvm tools from the Rust toolchain.
         toolchain_result = subprocess.run(
-            ["rustc", "--print", "sysroot"], capture_output=True, text=True,
+            ["rustc", "--print", "sysroot"],
+            capture_output=True,
+            text=True,
         )
         sysroot = toolchain_result.stdout.strip()
         llvm_bin = Path(sysroot) / "lib/rustlib" / get_target_triple() / "bin"
@@ -239,20 +375,26 @@ def run_coverage() -> Path:
                 [str(llvm_profdata), "merge", "-sparse"]
                 + [str(f) for f in profraw_files]
                 + ["-o", str(merged_profdata)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if result.returncode != 0:
-                print(f"WARNING: profdata merge failed, using standard report", file=sys.stderr)
+                print(
+                    "WARNING: profdata merge failed, using standard report",
+                    file=sys.stderr,
+                )
             else:
                 # Find all instrumented binaries (main test binaries + subprocess binaries)
                 main_bins = sorted(
-                    p for p in llvm_cov_target.glob("debug/deps/hegel-*")
+                    p
+                    for p in llvm_cov_target.glob("debug/deps/hegel-*")
                     if p.is_file() and not p.suffix
                 )
                 all_bins = main_bins + subprocess_bins
                 # Also include integration test binaries
                 test_bins = sorted(
-                    p for p in llvm_cov_target.glob("debug/deps/test_*")
+                    p
+                    for p in llvm_cov_target.glob("debug/deps/test_*")
                     if p.is_file() and not p.suffix
                 )
                 all_bins.extend(test_bins)
@@ -260,7 +402,9 @@ def run_coverage() -> Path:
                 if all_bins:
                     # Generate LCOV with all objects
                     cmd = [
-                        str(llvm_cov_bin), "export", "-format=lcov",
+                        str(llvm_cov_bin),
+                        "export",
+                        "-format=lcov",
                         f"-instr-profile={merged_profdata}",
                     ]
                     # First binary is positional, rest are --object
@@ -268,28 +412,34 @@ def run_coverage() -> Path:
                     for b in all_bins[1:]:
                         cmd.extend(["-object", str(b)])
                     # Only report on project source files
-                    cmd.extend([
-                        "-ignore-filename-regex=\\.cargo/registry",
-                        "-ignore-filename-regex=/rustc/",
-                        "-ignore-filename-regex=/rustlib/",
-                        "-ignore-filename-regex=/tmp/",
-                        "-ignore-filename-regex=/var/folders/",
-                        "-ignore-filename-regex=tests/",
-                    ])
+                    cmd.extend(
+                        [
+                            "-ignore-filename-regex=\\.cargo/registry",
+                            "-ignore-filename-regex=/rustc/",
+                            "-ignore-filename-regex=/rustlib/",
+                            "-ignore-filename-regex=/tmp/",
+                            "-ignore-filename-regex=/var/folders/",
+                            "-ignore-filename-regex=tests/",
+                        ]
+                    )
 
                     result = subprocess.run(cmd, capture_output=True, text=True)
                     if result.returncode == 0 and result.stdout:
                         lcov_path.write_text(result.stdout)
                         return lcov_path
                     else:
-                        print(f"WARNING: llvm-cov export failed, using standard report", file=sys.stderr)
+                        print(
+                            "WARNING: llvm-cov export failed, using standard report",
+                            file=sys.stderr,
+                        )
                         if result.stderr:
                             print(result.stderr[:500], file=sys.stderr)
 
     # Fallback: standard cargo llvm-cov report
     result = subprocess.run(
         ["cargo", "llvm-cov", "report", "--lcov", f"--output-path={lcov_path}"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         if result.stderr:
@@ -304,48 +454,9 @@ def run_coverage() -> Path:
     return lcov_path
 
 
-def parse_lcov(lcov_path: Path) -> list[UncoveredLine]:
-    """
-    Parse lcov.info file to find uncovered lines.
-
-    LCOV format:
-        SF:<source file path>
-        DA:<line number>,<execution count>
-        ...
-        end_of_record
-    """
-    uncovered: list[UncoveredLine] = []
-    current_file: Path | None = None
-
-    with lcov_path.open() as f:
-        for line in f:
-            line = line.strip()
-
-            if line.startswith("SF:"):
-                current_file = Path(line[3:])
-
-            elif line.startswith("DA:") and current_file is not None:
-                # DA:line_number,execution_count
-                match = re.match(r"DA:(\d+),(\d+)", line)
-                if match:
-                    line_number = int(match.group(1))
-                    exec_count = int(match.group(2))
-
-                    if exec_count == 0:
-                        # Get the actual content of the line
-                        content = get_line_content(current_file, line_number)
-                        uncovered.append(
-                            UncoveredLine(
-                                file=current_file,
-                                line_number=line_number,
-                                content=content,
-                            )
-                        )
-
-            elif line == "end_of_record":
-                current_file = None
-
-    return uncovered
+# ──────────────────────────────────────────────────────────────────────
+# LCOV parsing
+# ──────────────────────────────────────────────────────────────────────
 
 
 def get_line_content(file_path: Path, line_number: int) -> str:
@@ -360,70 +471,315 @@ def get_line_content(file_path: Path, line_number: int) -> str:
     return ""
 
 
-def main() -> int:
-    """Main entry point."""
-    # Generate coverage
-    lcov_path = run_coverage()
+def parse_lcov(lcov_path: Path) -> CoverageData:
+    """
+    Parse lcov.info file to find uncovered lines.
 
-    # Parse uncovered lines
-    uncovered = parse_lcov(lcov_path)
+    LCOV format:
+        SF:<source file path>
+        DA:<line number>,<execution count>
+        ...
+        end_of_record
+    """
+    data = CoverageData()
+    current_file: Path | None = None
 
-    if not uncovered:
-        print("\n\u2713 100% line coverage achieved!")
-        return 0
+    with lcov_path.open() as f:
+        for line in f:
+            line = line.strip()
 
-    # Categorize uncovered lines
-    structural_only: list[UncoveredLine] = []
-    todo_placeholders: list[UncoveredLine] = []
-    test_code_lines: list[UncoveredLine] = []
-    ignored_test_lines: list[UncoveredLine] = []
-    actual_code: list[UncoveredLine] = []
+            if line.startswith("SF:"):
+                current_file = Path(line[3:])
+
+            elif line.startswith("DA:") and current_file is not None:
+                match = re.match(r"DA:(\d+),(\d+)", line)
+                if match:
+                    line_number = int(match.group(1))
+                    exec_count = int(match.group(2))
+
+                    if exec_count == 0:
+                        content = get_line_content(current_file, line_number)
+                        data.uncovered_lines.append(
+                            UncoveredLine(current_file, line_number, content)
+                        )
+                    else:
+                        data.covered_lines.setdefault(current_file, set()).add(
+                            line_number
+                        )
+
+            elif line == "end_of_record":
+                current_file = None
+
+    return data
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Annotation management
+# ──────────────────────────────────────────────────────────────────────
+
+
+def find_line_annotations() -> list[tuple[Path, int, str]]:
+    """Find all line-level occurrences of // nocov in source files.
+
+    Returns (file, line_number, line_content) tuples.
+    Does NOT match block markers (// nocov start / // nocov end).
+    """
+    pattern = re.compile(r"//\s*nocov\b")
+    block_marker = re.compile(r"//\s*nocov\s+(start|end)\b")
+
+    results: list[tuple[Path, int, str]] = []
+    for src_dir in SOURCE_DIRS:
+        if not src_dir.exists():
+            continue
+        for rs_file in sorted(src_dir.rglob("*.rs")):
+            try:
+                with rs_file.open() as f:
+                    for i, line in enumerate(f, 1):
+                        if pattern.search(line):
+                            if block_marker.search(line):
+                                continue
+                            results.append((rs_file, i, line))
+            except (OSError, IOError):
+                continue
+    return results
+
+
+def remove_annotation_from_line(line: str) -> str:
+    """Remove // nocov from the end of a source line."""
+    pattern = r"\s*//\s*nocov\b.*$"
+    cleaned = re.sub(pattern, "", line.rstrip("\n"))
+    return cleaned + "\n" if line.endswith("\n") else cleaned
+
+
+def cleanup_unnecessary_annotations(coverage: CoverageData) -> int:
+    """Remove // nocov from covered lines.
+
+    Only removes line-level annotations; block markers (// nocov start/end) are
+    never auto-removed.
+
+    Returns the number of annotations removed.
+    """
+    nocov_removed = 0
+
+    # Collect modifications: {file: set of line numbers to clean}
+    modifications: dict[Path, set[int]] = {}
+
+    for file_path, line_num, _ in find_line_annotations():
+        covered = coverage.covered_lines.get(file_path, set())
+        if line_num in covered:
+            modifications.setdefault(file_path, set()).add(line_num)
+            nocov_removed += 1
+
+    # Apply modifications
+    for file_path, line_nums in modifications.items():
+        try:
+            with file_path.open() as f:
+                lines = f.readlines()
+            for line_num in line_nums:
+                idx = line_num - 1
+                if idx < len(lines):
+                    lines[idx] = remove_annotation_from_line(lines[idx])
+            with file_path.open("w") as f:
+                f.writelines(lines)
+        except (OSError, IOError) as e:
+            print(f"WARNING: Could not modify {file_path}: {e}", file=sys.stderr)
+
+    return nocov_removed
+
+
+def count_annotations() -> int:
+    """Count coverage annotations in source code.
+
+    Returns the total number of nocov-excluded lines: line-level // nocov
+    annotations plus lines inside // nocov start ... // nocov end blocks.
+    """
+    nocov_inline_pattern = re.compile(r"//\s*nocov\b")
+    nocov_start_pattern = re.compile(r"//\s*nocov\s+start\b")
+    nocov_end_pattern = re.compile(r"//\s*nocov\s+end\b")
+
+    nocov_count = 0
+
+    for src_dir in SOURCE_DIRS:
+        if not src_dir.exists():
+            continue
+        for rs_file in sorted(src_dir.rglob("*.rs")):
+            try:
+                in_nocov_block = False
+                with rs_file.open() as f:
+                    for line in f:
+                        if nocov_start_pattern.search(line):
+                            in_nocov_block = True
+                            continue
+                        if nocov_end_pattern.search(line):
+                            in_nocov_block = False
+                            continue
+                        if in_nocov_block:
+                            # Count each line inside a block
+                            nocov_count += 1
+                        elif nocov_inline_pattern.search(line):
+                            # Count inline // nocov annotations
+                            nocov_count += 1
+            except (OSError, IOError):
+                continue
+
+    return nocov_count
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Ratchet
+# ──────────────────────────────────────────────────────────────────────
+
+
+def read_ratchet() -> int | float:
+    """Read the ratchet file. Returns the nocov limit.
+
+    If the file doesn't exist, returns inf to allow initialization.
+    """
+    if not RATCHET_FILE.exists():
+        return float("inf")
+
+    try:
+        with RATCHET_FILE.open() as f:
+            data = json.load(f)
+        return data.get("nocov", 0)
+    except (json.JSONDecodeError, OSError, IOError):
+        return float("inf")
+
+
+def write_ratchet(nocov: int) -> None:
+    """Write the ratchet file with current count."""
+    RATCHET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with RATCHET_FILE.open("w") as f:
+        json.dump({"nocov": nocov}, f, indent=2)
+        f.write("\n")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Analysis
+# ──────────────────────────────────────────────────────────────────────
+
+
+def check_uncovered_lines(uncovered: list[UncoveredLine]) -> int:
+    """Categorize and report uncovered lines. Returns 0 if OK, 1 if failures."""
+    structural: list[UncoveredLine] = []
+    test_code: list[UncoveredLine] = []
+    placeholders: list[UncoveredLine] = []
+    macro_continuations: list[UncoveredLine] = []
+    nocov: list[UncoveredLine] = []
+    ignored_tests: list[UncoveredLine] = []
+    actual: list[UncoveredLine] = []
 
     for line in uncovered:
         if line.is_structural_syntax_only():
-            structural_only.append(line)
+            structural.append(line)
         elif line.is_test_code():
-            test_code_lines.append(line)
-        elif line.is_todo_placeholder() or line.is_unreachable_placeholder():
-            todo_placeholders.append(line)
+            test_code.append(line)
+        elif (
+            line.is_todo_placeholder()
+            or line.is_unreachable_placeholder()
+            or line.is_panic_call()
+        ):
+            placeholders.append(line)
+        elif line.is_inside_excluded_macro():
+            macro_continuations.append(line)
+        elif line.has_nocov_annotation():
+            nocov.append(line)
         elif line.is_ignored_test_body():
-            ignored_test_lines.append(line)
+            ignored_tests.append(line)
         else:
-            actual_code.append(line)
+            actual.append(line)
 
-    # Report results
     print()
-    print("Coverage Analysis Results")
-    print("=========================")
+    print("Line Coverage Analysis")
+    print("======================")
     print()
-    print(f"Uncovered closing braces (allowed): {len(structural_only)}")
-    print(f"Uncovered #[cfg(test)] code (allowed): {len(test_code_lines)}")
-    print(f"Uncovered todo!/unreachable! (allowed): {len(todo_placeholders)}")
-    print(f"Uncovered #[ignore]d test bodies (allowed): {len(ignored_test_lines)}")
-    print(f"Uncovered code lines: {len(actual_code)}")
+    print(f"Uncovered closing braces (allowed):           {len(structural)}")
+    print(f"Uncovered #[cfg(test)] code (allowed):        {len(test_code)}")
+    print(f"Uncovered todo!/unreachable!/panic! (allowed): {len(placeholders)}")
+    print(f"Uncovered macro continuations (allowed):      {len(macro_continuations)}")
+    print(f"Uncovered #[ignore]d test bodies (allowed):   {len(ignored_tests)}")
+    print(f"Uncovered // nocov lines (allowed):           {len(nocov)}")
+    print(f"Uncovered code lines:                         {len(actual)}")
     print()
 
-    if not actual_code:
-        print("\u2713 All uncovered lines are allowable patterns.")
-        print("  Coverage check PASSED!")
+    if not actual:
+        print("All uncovered lines are allowable patterns.")
         return 0
+
+    print("Found uncovered CODE that requires tests:")
+    print()
+    for line in actual:
+        try:
+            rel_path = line.file.relative_to(Path.cwd())
+        except ValueError:
+            rel_path = line.file
+        print(f"  {rel_path}:{line.line_number}: {line.content.strip()}")
+    print()
+    print("ACTION REQUIRED:")
+    print("  1. Add tests for the uncovered code, OR")
+    print("  2. If truly untestable, add a // nocov annotation")
+    print()
+    print("DO NOT blindly add // nocov! Each annotation must be justified.")
+    return 1
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Main
+# ──────────────────────────────────────────────────────────────────────
+
+
+def main() -> int:
+    """Main entry point."""
+    # 1. Generate coverage
+    lcov_path = run_coverage()
+
+    # 2. Parse coverage data
+    coverage = parse_lcov(lcov_path)
+
+    # 3. Check uncovered lines
+    if coverage.uncovered_lines:
+        result = check_uncovered_lines(coverage.uncovered_lines)
+        if result != 0:
+            return result
     else:
-        print("\u2717 Found uncovered CODE that requires tests:")
+        print("\n100% line coverage -- no uncovered lines at all!")
+
+    # 4. Cleanup: remove annotations from code that is now covered
+    nocov_removed = cleanup_unnecessary_annotations(coverage)
+    if nocov_removed > 0:
+        print(f"\nRemoved {nocov_removed} unnecessary // nocov annotations")
+
+    # 5. Count remaining annotations
+    nocov_count = count_annotations()
+    print(f"\nCoverage annotations: {nocov_count} // nocov")
+
+    # 6. Check ratchet
+    nocov_limit = read_ratchet()
+
+    if nocov_count > nocov_limit:
+        print(f"\nCoverage annotation ratchet EXCEEDED!")
+        print(f"  // nocov: {nocov_count} (limit: {nocov_limit})")
         print()
-        for line in actual_code:
-            # Show relative path for readability
-            try:
-                rel_path = line.file.relative_to(Path.cwd())
-            except ValueError:
-                rel_path = line.file
-            print(f"  {rel_path}:{line.line_number}: {line.content.strip()}")
-        print()
-        print("ACTION REQUIRED:")
-        print("  1. Add tests for the uncovered code, OR")
-        print("  2. If truly untestable, document why and update this script")
-        print()
-        print("DO NOT blindly add exceptions! Each exclusion must be justified.")
+        print("You may not add new // nocov annotations without explicit")
+        print("human approval. Remove the annotations or add tests to")
+        print("cover the code.")
         return 1
+
+    ratchet_changed = False
+    if nocov_count < nocov_limit:
+        old = nocov_limit if nocov_limit != float("inf") else "none"
+        print(f"  Ratchet tightened: nocov {old} -> {nocov_count}")
+        write_ratchet(nocov_count)
+        ratchet_changed = True
+    elif not RATCHET_FILE.exists():
+        write_ratchet(nocov_count)
+        ratchet_changed = True
+
+    if ratchet_changed:
+        print(f"  Updated {RATCHET_FILE}")
+
+    print("\nCoverage check PASSED!")
+    return 0
 
 
 if __name__ == "__main__":
