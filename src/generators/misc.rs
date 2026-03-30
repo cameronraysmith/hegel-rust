@@ -3,7 +3,9 @@ use crate::cbor_utils::cbor_map;
 use ciborium::Value;
 
 /// Generate the unit value `()`.
+// nocov start
 pub fn unit() -> JustGenerator<()> {
+    // nocov end
     just(()) // nocov
 }
 

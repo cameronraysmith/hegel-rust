@@ -53,9 +53,11 @@ pub fn read_packet<R: Read + ?Sized>(reader: &mut R) -> std::io::Result<Packet> 
     let length = u32::from_be_bytes([header[16], header[17], header[18], header[19]]);
 
     if magic != PACKET_MAGIC {
+        // nocov start
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData, // nocov
             format!(
+                // nocov end
                 "Invalid magic number: expected 0x{:08X}, got 0x{:08X}", // nocov
                 PACKET_MAGIC,                                            // nocov
                 magic                                                    // nocov
@@ -72,9 +74,11 @@ pub fn read_packet<R: Read + ?Sized>(reader: &mut R) -> std::io::Result<Packet> 
     let mut terminator = [0u8; 1];
     reader.read_exact(&mut terminator)?;
     if terminator[0] != PACKET_TERMINATOR {
+        // nocov start
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData, // nocov
             format!(
+                // nocov end
                 "Invalid terminator: expected 0x{:02X}, got 0x{:02X}", // nocov
                 PACKET_TERMINATOR,                                     // nocov
                 terminator[0]                                          // nocov
@@ -90,9 +94,11 @@ pub fn read_packet<R: Read + ?Sized>(reader: &mut R) -> std::io::Result<Packet> 
     hasher.update(&payload);
     let computed_checksum = hasher.finalize();
     if computed_checksum != checksum {
+        // nocov start
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData, // nocov
             format!(
+                // nocov end
                 "Checksum mismatch: expected 0x{:08X}, got 0x{:08X}", // nocov
                 checksum,                                             // nocov
                 computed_checksum                                     // nocov

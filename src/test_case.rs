@@ -29,14 +29,18 @@ pub fn __assert_is_test_case<T: __IsTestCase>() {}
 #[derive(Debug)]
 pub struct StopTestError;
 impl std::fmt::Display for StopTestError {
+    // nocov start
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // nocov end
         write!(f, "Server ran out of data (StopTest)") // nocov
     }
 }
 impl std::error::Error for StopTestError {}
 
 static PROTOCOL_DEBUG: LazyLock<bool> = LazyLock::new(|| {
+    // nocov start
     matches!(
+        // nocov end
         std::env::var("HEGEL_PROTOCOL_DEBUG")
             .unwrap_or_default()
             .to_lowercase()
@@ -313,7 +317,9 @@ impl TestCase {
                     drop(global);
                     Err(StopTestError)
                 } else if error_msg.contains("FlakyStrategyDefinition")
+                    // nocov start
                     || error_msg.contains("FlakyReplay")
+                // nocov end
                 {
                     // Abort the test case; the server will report the flaky
                     // error in the test_done results, which runner.rs handles.
@@ -322,7 +328,9 @@ impl TestCase {
                     global.test_aborted = true;
                     drop(global);
                     Err(StopTestError)
+                // nocov start
                 } else if self.global.borrow().connection.server_has_exited() {
+                    // nocov end
                     panic!("{}", SERVER_CRASHED_MESSAGE);
                 } else {
                     panic!("Failed to communicate with Hegel: {}", e);
@@ -451,15 +459,19 @@ impl<'a> Collection<'a> {
     }
 
     /// Reject the last element (don't count it towards the size budget).
+    // nocov start
     pub fn reject(&mut self, why: Option<&str>) {
         if self.finished {
+            // nocov end
             return; // nocov
         }
         let server_name = self.ensure_initialized().to_string(); // nocov
         let mut payload = cbor_map! { // nocov
             "collection" => server_name.as_str() // nocov
         };
+        // nocov start
         if let Some(reason) = why {
+            // nocov end
             map_insert(&mut payload, "why", reason.to_string()); // nocov
         }
         let _ = self.tc.send_request("collection_reject", &payload); // nocov

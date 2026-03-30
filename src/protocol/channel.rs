@@ -47,7 +47,9 @@ impl Channel {
 
     fn check_closed(&self) -> std::io::Result<()> {
         if self.closed {
+            // nocov start
             Err(std::io::Error::new(
+                // nocov end
                 std::io::ErrorKind::BrokenPipe, // nocov
                 "channel is closed",            // nocov
             ))

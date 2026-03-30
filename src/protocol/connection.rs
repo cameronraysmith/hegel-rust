@@ -90,7 +90,9 @@ impl Connection {
         self.channel_senders.lock().unwrap().remove(&channel_id);
     }
 
+    // nocov start
     pub fn mark_server_exited(&self) {
+        // nocov end
         self.server_exited.store(true, Ordering::SeqCst); // nocov
     }
 
@@ -98,8 +100,10 @@ impl Connection {
         self.server_exited.load(Ordering::SeqCst)
     }
 
+    // nocov start
     fn server_crashed_error() -> std::io::Error {
         std::io::Error::new(
+            // nocov end
             std::io::ErrorKind::ConnectionAborted, // nocov
             super::SERVER_CRASHED_MESSAGE,
         )

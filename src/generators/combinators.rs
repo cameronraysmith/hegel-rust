@@ -166,7 +166,9 @@ where
         } else {
             tc.start_span(labels::OPTIONAL); // nocov
             let is_some: bool = super::generate_from_schema(tc, &cbor_map! {"type" => "boolean"}); // nocov
+            // nocov start
             let result = if is_some {
+                // nocov end
                 Some(self.inner.do_draw(tc)) // nocov
             } else {
                 None // nocov

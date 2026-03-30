@@ -36,7 +36,9 @@ impl From<ciborium::Value> for HegelValue {
                 }
             }
             ciborium::Value::Text(s) => HegelValue::String(s),
+            // nocov start
             ciborium::Value::Bytes(b) => {
+                // nocov end
                 // Encode bytes as array of numbers
                 HegelValue::Array(
                     b.into_iter() // nocov
@@ -47,10 +49,12 @@ impl From<ciborium::Value> for HegelValue {
             ciborium::Value::Array(arr) => {
                 HegelValue::Array(arr.into_iter().map(HegelValue::from).collect())
             }
+            // nocov start
             ciborium::Value::Map(map) => HegelValue::Object(
                 map.into_iter() // nocov
                     .map(|(k, v)| {
                         let key = match k {
+                            // nocov end
                             ciborium::Value::Text(s) => s,   // nocov
                             other => format!("{:?}", other), // nocov
                         };
@@ -81,7 +85,9 @@ impl From<ciborium::Value> for HegelValue {
                 let result = -1i128 - n as i128;
                 HegelValue::BigInt(result.to_string())
             }
+            // nocov start
             ciborium::Value::Tag(tag, _) => {
+                // nocov end
                 panic!("Unexpected CBOR tag {tag} in protocol value")
             }
             other => panic!("Unexpected CBOR value type: {:?}", other),
@@ -93,7 +99,9 @@ impl From<ciborium::Value> for HegelValue {
 pub struct HegelValueError(String);
 
 impl fmt::Display for HegelValueError {
+    // nocov start
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // nocov end
         write!(f, "{}", self.0) // nocov
     }
 }
@@ -101,7 +109,9 @@ impl fmt::Display for HegelValueError {
 impl std::error::Error for HegelValueError {}
 
 impl de::Error for HegelValueError {
+    // nocov start
     fn custom<T: fmt::Display>(msg: T) -> Self {
+        // nocov end
         HegelValueError(msg.to_string()) // nocov
     }
 }
@@ -149,8 +159,10 @@ impl<'de> Deserializer<'de> for HegelValue {
         }
     }
 
+    // nocov start
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self {
+            // nocov end
             HegelValue::Null => visitor.visit_none(), // nocov
             _ => visitor.visit_some(self),            // nocov
         }

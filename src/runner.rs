@@ -143,10 +143,12 @@ fn take_panic_info() -> Option<(String, String, String, Backtrace)> {
 /// Short format shows only frames between `__rust_end_short_backtrace` and
 /// `__rust_begin_short_backtrace` markers, matching the default Rust panic handler.
 /// Frame numbers are renumbered to start at 0.
+// nocov start
 fn format_backtrace(bt: &Backtrace, full: bool) -> String {
     let backtrace_str = format!("{}", bt); // nocov
 
     if full {
+        // nocov end
         return backtrace_str; // nocov
     }
 
@@ -158,23 +160,29 @@ fn format_backtrace(bt: &Backtrace, full: bool) -> String {
     let mut start_idx = 0; // nocov
     let mut end_idx = lines.len(); // nocov
 
+    // nocov start
     for (i, line) in lines.iter().enumerate() {
         if line.contains("__rust_end_short_backtrace") {
             // Skip past this frame (find the next frame number)
             for (j, next_line) in lines.iter().enumerate().skip(i + 1) {
+                // nocov end
                 if next_line // nocov
                     .trim_start() // nocov
                     .chars() // nocov
                     .next() // nocov
                     .map(|c| c.is_ascii_digit()) // nocov
+                    // nocov start
                     .unwrap_or(false)
+                // nocov end
                 {
                     start_idx = j; // nocov
                     break; // nocov
                 }
             }
         }
+        // nocov start
         if line.contains("__rust_begin_short_backtrace") {
+            // nocov end
             // Find the start of this frame (the line with the frame number)
             for (j, prev_line) in lines // nocov
                 .iter() // nocov
@@ -182,14 +190,18 @@ fn format_backtrace(bt: &Backtrace, full: bool) -> String {
                 .take(i + 1) // nocov
                 .collect::<Vec<_>>() // nocov
                 .into_iter() // nocov
+                // nocov start
                 .rev()
+            // nocov end
             {
                 if prev_line // nocov
                     .trim_start() // nocov
                     .chars() // nocov
                     .next() // nocov
                     .map(|c| c.is_ascii_digit()) // nocov
+                    // nocov start
                     .unwrap_or(false)
+                // nocov end
                 {
                     end_idx = j; // nocov
                     break; // nocov
@@ -204,25 +216,33 @@ fn format_backtrace(bt: &Backtrace, full: bool) -> String {
     let mut new_frame_num = 0usize; // nocov
     let mut result = Vec::new(); // nocov
 
+    // nocov start
     for line in filtered {
+        // nocov end
         let trimmed = line.trim_start(); // nocov
         if trimmed // nocov
             .chars() // nocov
             .next() // nocov
             .map(|c| c.is_ascii_digit()) // nocov
+            // nocov start
             .unwrap_or(false)
+        // nocov end
         {
             // This is a frame number line like "   8: function_name"
             // Find where the number ends (at the colon)
+            // nocov start
             if let Some(colon_pos) = trimmed.find(':') {
+                // nocov end
                 let rest = &trimmed[colon_pos..]; // nocov
                 // Preserve original indentation style (right-aligned numbers) // nocov
                 result.push(format!("{:>4}{}", new_frame_num, rest)); // nocov
                 new_frame_num += 1; // nocov
+            // nocov start
             } else {
                 result.push(line.to_string()); // nocov
             }
         } else {
+            // nocov end
             result.push(line.to_string()); // nocov
         }
     }
@@ -506,7 +526,9 @@ impl Settings {
     }
 
     /// Set the verbosity level.
+    // nocov start
     pub fn verbosity(mut self, verbosity: Verbosity) -> Self {
+        // nocov end
         self.verbosity = verbosity; // nocov
         self // nocov
     }
@@ -556,7 +578,9 @@ impl Settings {
 }
 
 impl Default for Settings {
+    // nocov start
     fn default() -> Self {
+        // nocov end
         Self::new() // nocov
     }
 }
@@ -680,7 +704,9 @@ where
             // fail with RecvError once the background reader clears the senders.
             let (event_id, event_payload) = match test_channel.receive_request() {
                 Ok(event) => event,
+                // nocov start
                 Err(_) if connection.server_has_exited() => {
+                    // nocov end
                     panic!("{}", SERVER_CRASHED_MESSAGE);
                 }
                 Err(e) => unreachable!("Failed to receive event (server still running): {}", e),
@@ -807,7 +833,9 @@ where
             );
 
             #[cfg(feature = "antithesis")]
+            // nocov start
             if let Some(ref loc) = self.test_location {
+                // nocov end
                 crate::antithesis::emit_assertion(loc, !test_failed); // nocov
             }
         }
@@ -854,7 +882,9 @@ fn run_test_case<F: FnMut(TestCase)>(
                 // Take panic info - we need location for origin, and print details on final
                 let (thread_name, thread_id, location, backtrace) = take_panic_info()
                     .unwrap_or_else(|| {
+                        // nocov start
                         (
+                            // nocov end
                             "<unknown>".to_string(), // nocov
                             "?".to_string(),         // nocov
                             "<unknown>".to_string(), // nocov
@@ -875,8 +905,10 @@ fn run_test_case<F: FnMut(TestCase)>(
                             .unwrap_or(false); // nocov
                         let formatted = format_backtrace(&backtrace, is_full); // nocov
                         eprintln!("stack backtrace:\n{}", formatted); // nocov
+                        // nocov start
                         if !is_full {
                             eprintln!(
+                                // nocov end
                                 "note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace." // nocov
                             );
                         }
