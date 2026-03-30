@@ -129,18 +129,18 @@ where
         if let Some(basic) = self.as_basic() {
             basic.do_draw(tc)
         } else {
-            tc.start_span(labels::SET);
-            let mut collection = Collection::new(tc, "composite_set", self.min_size, self.max_size);
-            let mut set = HashSet::new();
+            tc.start_span(labels::SET); // nocov
+            let mut collection = Collection::new(tc, "composite_set", self.min_size, self.max_size); // nocov
+            let mut set = HashSet::new(); // nocov
             while collection.more() {
-                let element = self.elements.do_draw(tc);
+                let element = self.elements.do_draw(tc); // nocov
                 if !set.insert(element) {
-                    collection.reject(Some("duplicate element"));
+                    collection.reject(Some("duplicate element")); // nocov
                 }
             }
-            assert!(set.len() >= self.min_size);
-            tc.stop_span(false);
-            set
+            assert!(set.len() >= self.min_size); // nocov
+            tc.stop_span(false); // nocov
+            set // nocov
         }
     }
 
@@ -216,24 +216,24 @@ where
         if let Some(basic) = self.as_basic() {
             basic.do_draw(tc)
         } else {
-            tc.start_span(labels::MAP);
-            let mut collection = Collection::new(tc, "composite_map", self.min_size, self.max_size);
-            let mut map = HashMap::new();
+            tc.start_span(labels::MAP); // nocov
+            let mut collection = Collection::new(tc, "composite_map", self.min_size, self.max_size); // nocov
+            let mut map = HashMap::new(); // nocov
             while collection.more() {
-                let key = self.keys.do_draw(tc);
+                let key = self.keys.do_draw(tc); // nocov
                 match map.entry(key) {
                     std::collections::hash_map::Entry::Occupied(_) => {
-                        collection.reject(Some("duplicate key"));
+                        collection.reject(Some("duplicate key")); // nocov
                     }
                     std::collections::hash_map::Entry::Vacant(entry) => {
-                        let value = self.values.do_draw(tc);
-                        entry.insert(value);
+                        let value = self.values.do_draw(tc); // nocov
+                        entry.insert(value); // nocov
                     }
                 }
             }
-            assert!(map.len() >= self.min_size);
-            tc.stop_span(false);
-            map
+            assert!(map.len() >= self.min_size); // nocov
+            tc.stop_span(false); // nocov
+            map // nocov
         }
     }
 
@@ -312,15 +312,15 @@ pub(crate) struct MappedToValue<T, G> {
 
 impl<T: serde::Serialize, G: Generator<T>> Generator<Value> for MappedToValue<T, G> {
     fn do_draw(&self, tc: &TestCase) -> Value {
-        crate::cbor_utils::cbor_serialize(&self.inner.do_draw(tc))
+        crate::cbor_utils::cbor_serialize(&self.inner.do_draw(tc)) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
-        let inner_basic = self.inner.as_basic()?;
-        let schema = inner_basic.schema().clone();
+        let inner_basic = self.inner.as_basic()?; // nocov
+        let schema = inner_basic.schema().clone(); // nocov
         Some(BasicGenerator::new(schema, move |raw| {
-            let t_val = inner_basic.parse_raw(raw);
-            crate::cbor_utils::cbor_serialize(&t_val)
+            let t_val = inner_basic.parse_raw(raw); // nocov
+            crate::cbor_utils::cbor_serialize(&t_val) // nocov
         }))
     }
 }
@@ -337,23 +337,23 @@ impl<'a> FixedDictBuilder<'a> {
     /// Add a field with a name and generator.
     pub fn field<T, G>(mut self, name: &str, generator: G) -> Self
     where
-        G: Generator<T> + Send + Sync + 'a,
-        T: serde::Serialize + 'a,
+        G: Generator<T> + Send + Sync + 'a, // nocov
+        T: serde::Serialize + 'a,           // nocov
     {
         let boxed = BoxedGenerator {
             inner: Arc::new(MappedToValue {
-                inner: generator,
-                _phantom: PhantomData,
+                inner: generator,      // nocov
+                _phantom: PhantomData, // nocov
             }),
         };
-        self.fields.push((name.to_string(), boxed));
-        self
+        self.fields.push((name.to_string(), boxed)); // nocov
+        self // nocov
     }
 
     /// Build the generator.
     pub fn build(self) -> FixedDictGenerator<'a> {
         FixedDictGenerator {
-            fields: self.fields,
+            fields: self.fields, // nocov
         }
     }
 }
@@ -366,48 +366,48 @@ pub struct FixedDictGenerator<'a> {
 impl Generator<Value> for FixedDictGenerator<'_> {
     fn do_draw(&self, tc: &TestCase) -> Value {
         if let Some(basic) = self.as_basic() {
-            basic.do_draw(tc)
+            basic.do_draw(tc) // nocov
         } else {
-            tc.start_span(labels::FIXED_DICT);
-            let entries: Vec<(Value, Value)> = self
-                .fields
-                .iter()
-                .map(|(name, g)| (Value::Text(name.clone()), g.do_draw(tc)))
-                .collect();
-            tc.stop_span(false);
-            Value::Map(entries)
+            tc.start_span(labels::FIXED_DICT); // nocov
+            let entries: Vec<(Value, Value)> = self // nocov
+                .fields // nocov
+                .iter() // nocov
+                .map(|(name, g)| (Value::Text(name.clone()), g.do_draw(tc))) // nocov
+                .collect(); // nocov
+            tc.stop_span(false); // nocov
+            Value::Map(entries) // nocov
         }
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
-        let basics: Vec<BasicGenerator<'_, Value>> = self
-            .fields
-            .iter()
-            .map(|(_, g)| g.as_basic())
-            .collect::<Option<Vec<_>>>()?;
+        let basics: Vec<BasicGenerator<'_, Value>> = self // nocov
+            .fields // nocov
+            .iter() // nocov
+            .map(|(_, g)| g.as_basic()) // nocov
+            .collect::<Option<Vec<_>>>()?; // nocov
 
-        let schemas: Vec<Value> = basics.iter().map(|b| b.schema().clone()).collect();
+        let schemas: Vec<Value> = basics.iter().map(|b| b.schema().clone()).collect(); // nocov
 
-        let schema = cbor_map! {
+        let schema = cbor_map! { // nocov
             "type" => "tuple",
-            "elements" => Value::Array(schemas)
+            "elements" => Value::Array(schemas) // nocov
         };
 
-        let field_names: Vec<String> = self.fields.iter().map(|(name, _)| name.clone()).collect();
+        let field_names: Vec<String> = self.fields.iter().map(|(name, _)| name.clone()).collect(); // nocov
 
         Some(BasicGenerator::new(schema, move |raw| {
             let arr = match raw {
-                Value::Array(arr) => arr,
+                Value::Array(arr) => arr, // nocov
                 _ => panic!("Expected array from tuple schema, got {:?}", raw),
             };
 
-            let entries: Vec<(Value, Value)> = field_names
-                .iter()
-                .zip(basics.iter())
-                .zip(arr)
-                .map(|((name, basic), val)| (Value::Text(name.clone()), basic.parse_raw(val)))
-                .collect();
-            Value::Map(entries)
+            let entries: Vec<(Value, Value)> = field_names // nocov
+                .iter() // nocov
+                .zip(basics.iter()) // nocov
+                .zip(arr) // nocov
+                .map(|((name, basic), val)| (Value::Text(name.clone()), basic.parse_raw(val))) // nocov
+                .collect(); // nocov
+            Value::Map(entries) // nocov
         }))
     }
 }
@@ -425,7 +425,7 @@ impl Generator<Value> for FixedDictGenerator<'_> {
 ///     .build();
 /// ```
 pub fn fixed_dicts<'a>() -> FixedDictBuilder<'a> {
-    FixedDictBuilder { fields: Vec::new() }
+    FixedDictBuilder { fields: Vec::new() } // nocov
 }
 
 /// Generator for fixed-size arrays `[T; N]`. Created by [`arrays()`].

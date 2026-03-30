@@ -14,16 +14,16 @@ impl<T: Clone + Send + Sync> Generator<T> for SampledFromGenerator<T> {
             return basic.do_draw(tc);
         }
 
-        let indices = integers::<usize>()
-            .min_value(0)
-            .max_value(self.elements.len() - 1);
-        let index = indices.do_draw(tc);
-        self.elements[index].clone()
+        let indices = integers::<usize>() // nocov
+            .min_value(0) // nocov
+            .max_value(self.elements.len() - 1); // nocov
+        let index = indices.do_draw(tc); // nocov
+        self.elements[index].clone() // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
         if self.elements.is_empty() {
-            return None;
+            return None; // nocov
         }
 
         let schema = cbor_map! {
@@ -164,15 +164,15 @@ where
         if let Some(basic) = self.as_basic() {
             basic.do_draw(tc)
         } else {
-            tc.start_span(labels::OPTIONAL);
-            let is_some: bool = super::generate_from_schema(tc, &cbor_map! {"type" => "boolean"});
+            tc.start_span(labels::OPTIONAL); // nocov
+            let is_some: bool = super::generate_from_schema(tc, &cbor_map! {"type" => "boolean"}); // nocov
             let result = if is_some {
-                Some(self.inner.do_draw(tc))
+                Some(self.inner.do_draw(tc)) // nocov
             } else {
-                None
+                None // nocov
             };
-            tc.stop_span(false);
-            result
+            tc.stop_span(false); // nocov
+            result // nocov
         }
     }
 

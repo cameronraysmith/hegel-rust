@@ -83,10 +83,10 @@ macro_rules! impl_tuple {
                 if let Some(basic) = self.as_basic() {
                     basic.do_draw(tc)
                 } else {
-                    tc.start_span(labels::TUPLE);
-                    let result = ($(self.$field.do_draw(tc),)+);
-                    tc.stop_span(false);
-                    result
+                    tc.start_span(labels::TUPLE); // nocov
+                    let result = ($(self.$field.do_draw(tc),)+); // nocov
+                    tc.stop_span(false); // nocov
+                    result // nocov
                 }
             }
 

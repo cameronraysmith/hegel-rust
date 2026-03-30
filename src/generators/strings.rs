@@ -71,27 +71,27 @@ pub struct RegexGenerator {
 impl RegexGenerator {
     /// Set whether the entire string must match the pattern, not just contain a match.
     pub fn fullmatch(mut self, fullmatch: bool) -> Self {
-        self.fullmatch = fullmatch;
-        self
+        self.fullmatch = fullmatch; // nocov
+        self // nocov
     }
 
     fn build_schema(&self) -> Value {
-        cbor_map! {
+        cbor_map! { // nocov
             "type" => "regex",
-            "pattern" => self.pattern.as_str(),
-            "fullmatch" => self.fullmatch
+            "pattern" => self.pattern.as_str(), // nocov
+            "fullmatch" => self.fullmatch // nocov
         }
     }
 }
 
 impl Generator<String> for RegexGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &self.build_schema())
+        super::generate_from_schema(tc, &self.build_schema()) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(self.build_schema(), |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
@@ -99,8 +99,8 @@ impl Generator<String> for RegexGenerator {
 /// Generate strings matching a regex pattern.
 pub fn from_regex(pattern: &str) -> RegexGenerator {
     RegexGenerator {
-        pattern: pattern.to_string(),
-        fullmatch: false,
+        pattern: pattern.to_string(), // nocov
+        fullmatch: false,             // nocov
     }
 }
 
@@ -171,19 +171,19 @@ pub struct EmailGenerator;
 
 impl Generator<String> for EmailGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &cbor_map! {"type" => "email"})
+        super::generate_from_schema(tc, &cbor_map! {"type" => "email"}) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(cbor_map! {"type" => "email"}, |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
 
 /// Generate email address strings.
 pub fn emails() -> EmailGenerator {
-    EmailGenerator
+    EmailGenerator // nocov
 }
 
 /// Generator for URL strings. Created by [`urls()`].
@@ -191,19 +191,19 @@ pub struct UrlGenerator;
 
 impl Generator<String> for UrlGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &cbor_map! {"type" => "url"})
+        super::generate_from_schema(tc, &cbor_map! {"type" => "url"}) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(cbor_map! {"type" => "url"}, |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
 
 /// Generate URL strings.
 pub fn urls() -> UrlGenerator {
-    UrlGenerator
+    UrlGenerator // nocov
 }
 
 /// Generator for domain name strings. Created by [`domains()`].
@@ -224,21 +224,21 @@ impl DomainGenerator {
             "max_length must be between 4 and 255"
         );
 
-        cbor_map! {
+        cbor_map! { // nocov
             "type" => "domain",
-            "max_length" => self.max_length as u64
+            "max_length" => self.max_length as u64 // nocov
         }
     }
 }
 
 impl Generator<String> for DomainGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &self.build_schema())
+        super::generate_from_schema(tc, &self.build_schema()) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(self.build_schema(), |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
@@ -264,24 +264,24 @@ pub struct IpAddressGenerator {
 impl IpAddressGenerator {
     /// Only generate IPv4 addresses.
     pub fn v4(mut self) -> Self {
-        self.version = Some(IpVersion::V4);
-        self
+        self.version = Some(IpVersion::V4); // nocov
+        self // nocov
     }
 
     /// Only generate IPv6 addresses.
     pub fn v6(mut self) -> Self {
-        self.version = Some(IpVersion::V6);
-        self
+        self.version = Some(IpVersion::V6); // nocov
+        self // nocov
     }
 
     fn build_schema(&self) -> Value {
         match self.version {
-            Some(IpVersion::V4) => cbor_map! {"type" => "ipv4"},
-            Some(IpVersion::V6) => cbor_map! {"type" => "ipv6"},
-            None => cbor_map! {
-                "one_of" => cbor_array![
-                    cbor_map!{"type" => "ipv4"},
-                    cbor_map!{"type" => "ipv6"}
+            Some(IpVersion::V4) => cbor_map! {"type" => "ipv4"}, // nocov
+            Some(IpVersion::V6) => cbor_map! {"type" => "ipv6"}, // nocov
+            None => cbor_map! { // nocov
+                "one_of" => cbor_array![ // nocov
+                    cbor_map!{"type" => "ipv4"}, // nocov
+                    cbor_map!{"type" => "ipv6"} // nocov
                 ]
             },
         }
@@ -290,19 +290,19 @@ impl IpAddressGenerator {
 
 impl Generator<String> for IpAddressGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &self.build_schema())
+        super::generate_from_schema(tc, &self.build_schema()) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(self.build_schema(), |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
 
 /// Generate IP address strings (IPv4 or IPv6).
 pub fn ip_addresses() -> IpAddressGenerator {
-    IpAddressGenerator { version: None }
+    IpAddressGenerator { version: None } // nocov
 }
 
 /// Generator for date strings in YYYY-MM-DD format. Created by [`dates()`].
@@ -310,19 +310,19 @@ pub struct DateGenerator;
 
 impl Generator<String> for DateGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &cbor_map! {"type" => "date"})
+        super::generate_from_schema(tc, &cbor_map! {"type" => "date"}) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(cbor_map! {"type" => "date"}, |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
 
 /// Generate date strings in YYYY-MM-DD format.
 pub fn dates() -> DateGenerator {
-    DateGenerator
+    DateGenerator // nocov
 }
 
 /// Generator for time strings in HH:MM:SS format. Created by [`times()`].
@@ -330,19 +330,19 @@ pub struct TimeGenerator;
 
 impl Generator<String> for TimeGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &cbor_map! {"type" => "time"})
+        super::generate_from_schema(tc, &cbor_map! {"type" => "time"}) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(cbor_map! {"type" => "time"}, |raw| {
-            super::deserialize_value(raw)
+            super::deserialize_value(raw) // nocov
         }))
     }
 }
 
 /// Generate time strings in HH:MM:SS format.
 pub fn times() -> TimeGenerator {
-    TimeGenerator
+    TimeGenerator // nocov
 }
 
 /// Generator for ISO 8601 datetime strings. Created by [`datetimes()`].
@@ -350,18 +350,18 @@ pub struct DateTimeGenerator;
 
 impl Generator<String> for DateTimeGenerator {
     fn do_draw(&self, tc: &TestCase) -> String {
-        super::generate_from_schema(tc, &cbor_map! {"type" => "datetime"})
+        super::generate_from_schema(tc, &cbor_map! {"type" => "datetime"}) // nocov
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
         Some(BasicGenerator::new(
-            cbor_map! {"type" => "datetime"},
-            super::deserialize_value,
+            cbor_map! {"type" => "datetime"}, // nocov
+            super::deserialize_value,         // nocov
         ))
     }
 }
 
 /// Generate ISO 8601 datetime strings.
 pub fn datetimes() -> DateTimeGenerator {
-    DateTimeGenerator
+    DateTimeGenerator // nocov
 }

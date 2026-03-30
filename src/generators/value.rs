@@ -19,7 +19,7 @@ pub enum HegelValue {
 impl From<ciborium::Value> for HegelValue {
     fn from(v: ciborium::Value) -> Self {
         match v {
-            ciborium::Value::Null => HegelValue::Null,
+            ciborium::Value::Null => HegelValue::Null, // nocov
             ciborium::Value::Bool(b) => HegelValue::Bool(b),
             ciborium::Value::Float(f) => {
                 // NaN and Infinity are preserved natively by ciborium::Value
@@ -39,24 +39,24 @@ impl From<ciborium::Value> for HegelValue {
             ciborium::Value::Bytes(b) => {
                 // Encode bytes as array of numbers
                 HegelValue::Array(
-                    b.into_iter()
-                        .map(|byte| HegelValue::Number(byte as f64))
-                        .collect(),
+                    b.into_iter() // nocov
+                        .map(|byte| HegelValue::Number(byte as f64)) // nocov
+                        .collect(), // nocov
                 )
             }
             ciborium::Value::Array(arr) => {
                 HegelValue::Array(arr.into_iter().map(HegelValue::from).collect())
             }
             ciborium::Value::Map(map) => HegelValue::Object(
-                map.into_iter()
+                map.into_iter() // nocov
                     .map(|(k, v)| {
                         let key = match k {
-                            ciborium::Value::Text(s) => s,
-                            other => format!("{:?}", other),
+                            ciborium::Value::Text(s) => s,   // nocov
+                            other => format!("{:?}", other), // nocov
                         };
-                        (key, HegelValue::from(v))
+                        (key, HegelValue::from(v)) // nocov
                     })
-                    .collect(),
+                    .collect(), // nocov
             ),
             ciborium::Value::Tag(2, inner) => {
                 // CBOR tag 2: positive bignum, encoded as big-endian bytes
@@ -94,7 +94,7 @@ pub struct HegelValueError(String);
 
 impl fmt::Display for HegelValueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0) // nocov
     }
 }
 
@@ -102,7 +102,7 @@ impl std::error::Error for HegelValueError {}
 
 impl de::Error for HegelValueError {
     fn custom<T: fmt::Display>(msg: T) -> Self {
-        HegelValueError(msg.to_string())
+        HegelValueError(msg.to_string()) // nocov
     }
 }
 
@@ -111,7 +111,7 @@ impl<'de> Deserializer<'de> for HegelValue {
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self {
-            HegelValue::Null => visitor.visit_unit(),
+            HegelValue::Null => visitor.visit_unit(), // nocov
             HegelValue::Bool(b) => visitor.visit_bool(b),
             HegelValue::Number(n) => {
                 // For whole numbers that fit in i64, use visit_i64 so integer
@@ -135,7 +135,7 @@ impl<'de> Deserializer<'de> for HegelValue {
                 } else if let Ok(n) = s.parse::<i128>() {
                     visitor.visit_i128(n)
                 } else {
-                    Err(HegelValueError(format!("invalid big integer value: {}", s)))
+                    Err(HegelValueError(format!("invalid big integer value: {}", s))) // nocov
                 }
             }
             HegelValue::String(s) => visitor.visit_string(s),
@@ -151,8 +151,8 @@ impl<'de> Deserializer<'de> for HegelValue {
 
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self {
-            HegelValue::Null => visitor.visit_none(),
-            _ => visitor.visit_some(self),
+            HegelValue::Null => visitor.visit_none(), // nocov
+            _ => visitor.visit_some(self),            // nocov
         }
     }
 

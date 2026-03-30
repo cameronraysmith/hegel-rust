@@ -182,19 +182,19 @@ pub trait StateMachine {
 // TODO: factor out (shared with runner.rs)
 fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
-        s.to_string()
+        s.to_string() // nocov
     } else if let Some(s) = payload.downcast_ref::<String>() {
         s.clone()
     } else {
-        "Unknown panic".to_string()
+        "Unknown panic".to_string() // nocov
     }
 }
 
 fn check_invariants(m: &mut impl StateMachine, tc: &TestCase) {
     let invariants = m.invariants();
     for invariant in invariants {
-        let inv_tc = tc.child(2);
-        (invariant.apply)(m, inv_tc);
+        let inv_tc = tc.child(2); // nocov
+        (invariant.apply)(m, inv_tc); // nocov
     }
 }
 

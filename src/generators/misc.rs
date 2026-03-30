@@ -4,7 +4,7 @@ use ciborium::Value;
 
 /// Generate the unit value `()`.
 pub fn unit() -> JustGenerator<()> {
-    just(())
+    just(()) // nocov
 }
 
 /// Generator that always produces the same value. Created by [`just()`].

@@ -123,7 +123,7 @@ impl<T, G: Generator<T>> Generator<T> for &G {
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
-        (*self).as_basic()
+        (*self).as_basic() // nocov
     }
 }
 

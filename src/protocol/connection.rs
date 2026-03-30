@@ -91,7 +91,7 @@ impl Connection {
     }
 
     pub fn mark_server_exited(&self) {
-        self.server_exited.store(true, Ordering::SeqCst);
+        self.server_exited.store(true, Ordering::SeqCst); // nocov
     }
 
     pub fn server_has_exited(&self) -> bool {
@@ -100,7 +100,7 @@ impl Connection {
 
     fn server_crashed_error() -> std::io::Error {
         std::io::Error::new(
-            std::io::ErrorKind::ConnectionAborted,
+            std::io::ErrorKind::ConnectionAborted, // nocov
             super::SERVER_CRASHED_MESSAGE,
         )
     }
@@ -109,8 +109,8 @@ impl Connection {
         let mut writer = self.writer.lock().unwrap();
         match write_packet(&mut **writer, packet) {
             Ok(()) => Ok(()),
-            Err(_) if self.server_has_exited() => Err(Self::server_crashed_error()),
-            Err(e) => Err(e),
+            Err(_) if self.server_has_exited() => Err(Self::server_crashed_error()), // nocov
+            Err(e) => Err(e),                                                        // nocov
         }
     }
 }

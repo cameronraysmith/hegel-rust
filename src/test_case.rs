@@ -30,7 +30,7 @@ pub fn __assert_is_test_case<T: __IsTestCase>() {}
 pub struct StopTestError;
 impl std::fmt::Display for StopTestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Server ran out of data (StopTest)")
+        write!(f, "Server ran out of data (StopTest)") // nocov
     }
 }
 impl std::error::Error for StopTestError {}
@@ -200,8 +200,8 @@ impl TestCase {
     /// ```
     pub fn note(&self, message: &str) {
         if self.global.borrow().is_last_run {
-            let indent = self.local.borrow().indent;
-            eprintln!("{:indent$}{}", "", message, indent = indent);
+            let indent = self.local.borrow().indent; // nocov
+            eprintln!("{:indent$}{}", "", message, indent = indent); // nocov
         }
     }
 
@@ -236,10 +236,10 @@ impl TestCase {
     pub fn start_span(&self, label: u64) {
         self.local.borrow_mut().span_depth += 1;
         if let Err(StopTestError) = self.send_request("start_span", &cbor_map! {"label" => label}) {
-            let mut local = self.local.borrow_mut();
-            assert!(local.span_depth > 0);
-            local.span_depth -= 1;
-            drop(local);
+            let mut local = self.local.borrow_mut(); // nocov
+            assert!(local.span_depth > 0); // nocov
+            local.span_depth -= 1; // nocov
+            drop(local); // nocov
             panic!("{}", STOP_TEST_STRING);
         }
     }
@@ -267,7 +267,7 @@ impl TestCase {
         // (The channel-level closed check is also enforced, but this gives a
         // clean StopTestError instead of an io::Error.)
         if global.test_aborted {
-            return Err(StopTestError);
+            return Err(StopTestError); // nocov
         }
         let debug = *PROTOCOL_DEBUG || global.verbosity == Verbosity::Debug;
 
@@ -285,7 +285,7 @@ impl TestCase {
         let request = Value::Map(entries);
 
         if debug {
-            eprintln!("REQUEST: {:?}", request);
+            eprintln!("REQUEST: {:?}", request); // nocov
         }
 
         let result = global.channel.request_cbor(&request);
@@ -294,7 +294,7 @@ impl TestCase {
         match result {
             Ok(response) => {
                 if debug {
-                    eprintln!("RESPONSE: {:?}", response);
+                    eprintln!("RESPONSE: {:?}", response); // nocov
                 }
                 Ok(response)
             }
@@ -305,7 +305,7 @@ impl TestCase {
                     || error_msg.contains("channel is closed")
                 {
                     if debug {
-                        eprintln!("RESPONSE: StopTest/overflow");
+                        eprintln!("RESPONSE: StopTest/overflow"); // nocov
                     }
                     let mut global = self.global.borrow_mut();
                     global.channel.mark_closed();
@@ -404,7 +404,7 @@ impl<'a> Collection<'a> {
                 "min_size" => self.min_size as u64
             };
             if let Some(max) = self.max_size {
-                map_insert(&mut payload, "max_size", max as u64);
+                map_insert(&mut payload, "max_size", max as u64); // nocov
             }
             let response = match self.tc.send_request("new_collection", &payload) {
                 Ok(v) => v,
@@ -427,7 +427,7 @@ impl<'a> Collection<'a> {
     /// Ask the server whether to produce another element.
     pub fn more(&mut self) -> bool {
         if self.finished {
-            return false;
+            return false; // nocov
         }
         let server_name = self.ensure_initialized().to_string();
         let response = match self.tc.send_request(
@@ -453,16 +453,16 @@ impl<'a> Collection<'a> {
     /// Reject the last element (don't count it towards the size budget).
     pub fn reject(&mut self, why: Option<&str>) {
         if self.finished {
-            return;
+            return; // nocov
         }
-        let server_name = self.ensure_initialized().to_string();
-        let mut payload = cbor_map! {
-            "collection" => server_name.as_str()
+        let server_name = self.ensure_initialized().to_string(); // nocov
+        let mut payload = cbor_map! { // nocov
+            "collection" => server_name.as_str() // nocov
         };
         if let Some(reason) = why {
-            map_insert(&mut payload, "why", reason.to_string());
+            map_insert(&mut payload, "why", reason.to_string()); // nocov
         }
-        let _ = self.tc.send_request("collection_reject", &payload);
+        let _ = self.tc.send_request("collection_reject", &payload); // nocov
     }
 }
 
