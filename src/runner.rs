@@ -108,6 +108,7 @@ impl HegelSession {
             let _ = child.kill(); // nocov
             panic!(
                 // nocov
+                // nocov
                 "hegel-rust supports protocol versions {lo} through {hi}, but \
                  the connected server is using protocol version {version}. Upgrading \
                  hegel-rust or downgrading hegel-core might help."
@@ -690,7 +691,7 @@ where
                 // nocov start
                 Err(_) if connection.server_has_exited() => {
                     // nocov end
-                    panic!("{}", SERVER_CRASHED_MESSAGE);
+                    panic!("{}", SERVER_CRASHED_MESSAGE); // nocov
                 }
                 Err(e) => unreachable!("Failed to receive event (server still running): {}", e),
             };
@@ -798,7 +799,7 @@ where
             }
 
             if connection.server_has_exited() {
-                panic!("{}", SERVER_CRASHED_MESSAGE);
+                panic!("{}", SERVER_CRASHED_MESSAGE); // nocov
             }
         }
 

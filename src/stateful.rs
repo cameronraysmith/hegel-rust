@@ -122,7 +122,7 @@ impl<T> Variables<T> {
         {
             Ok(Value::Integer(i)) => i.into(),
             Err(_) => {
-                panic!("{}", STOP_TEST_STRING);
+                panic!("{}", STOP_TEST_STRING); // nocov
             }
             Ok(other) => panic!("Expected integer response for variable id, got {:?}", other), // nocov
         };
@@ -156,7 +156,7 @@ pub fn variables<T>(tc: &TestCase) -> Variables<T> {
     let pool_id = match tc.send_request("new_pool", &cbor_map! {}) {
         Ok(Value::Integer(i)) => i.into(),
         Err(_) => {
-            panic!("{}", STOP_TEST_STRING);
+            panic!("{}", STOP_TEST_STRING); // nocov
         }
         Ok(other) => panic!("Expected integer response for pool id, got {:?}", other), // nocov
     };
@@ -202,7 +202,7 @@ fn check_invariants(m: &mut impl StateMachine, tc: &TestCase) {
 pub fn run(mut m: impl StateMachine, tc: TestCase) {
     let rules = m.rules();
     if rules.is_empty() {
-        panic!("Cannot run a machine with no rules.");
+        panic!("Cannot run a machine with no rules."); // nocov
     }
 
     let rule_index = integers::<usize>().min_value(0).max_value(rules.len() - 1);

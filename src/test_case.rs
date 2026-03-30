@@ -246,7 +246,7 @@ impl TestCase {
             local.span_depth -= 1;
             drop(local);
             // nocov end
-            panic!("{}", STOP_TEST_STRING);
+            panic!("{}", STOP_TEST_STRING); // nocov
         }
     }
 
@@ -333,7 +333,7 @@ impl TestCase {
                 // nocov start
                 } else if self.global.borrow().connection.server_has_exited() {
                     // nocov end
-                    panic!("{}", SERVER_CRASHED_MESSAGE);
+                    panic!("{}", SERVER_CRASHED_MESSAGE); // nocov
                 } else {
                     panic!("Failed to communicate with Hegel: {}", e); // nocov
                 }
@@ -419,12 +419,13 @@ impl<'a> Collection<'a> {
             let response = match self.tc.send_request("new_collection", &payload) {
                 Ok(v) => v,
                 Err(StopTestError) => {
-                    panic!("{}", STOP_TEST_STRING);
+                    panic!("{}", STOP_TEST_STRING); // nocov
                 }
             };
             let name = match response {
                 Value::Text(s) => s,
                 _ => panic!(
+                    // nocov
                     // nocov
                     "Expected text response from new_collection, got {:?}",
                     response
