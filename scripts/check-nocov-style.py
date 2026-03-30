@@ -7,6 +7,7 @@
 3. No single-line // nocov start/end blocks when the line could take an inline
    comment (use inline // nocov instead).
 4. No // nocov end immediately followed by // nocov start (merge the blocks).
+5. // nocov start and // nocov end must be on their own lines (no code).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ nocov_inline_re = re.compile(r"//\s*nocov\b")
 nocov_start_re = re.compile(r"//\s*nocov\s+start\b")
 nocov_end_re = re.compile(r"//\s*nocov\s+end\b")
 nocov_block_re = re.compile(r"//\s*nocov\s+(start|end)\b")
+nocov_block_own_line_re = re.compile(r"^\s*//\s*nocov\s+(start|end)\b\s*$")
 
 
 def is_inline_nocov(line: str) -> bool:
@@ -50,6 +52,11 @@ def check() -> int:
                 lineno = i + 1
 
                 if nocov_start_re.search(line):
+                    # Check: start/end must be on their own line
+                    if not nocov_block_own_line_re.match(line):
+                        violations.append(
+                            f"  {rs_file}:{lineno}: // nocov start must be on its own line"
+                        )
                     # Check: inline nocov right before this start
                     if i > 0 and is_inline_nocov(lines[i - 1]):
                         violations.append(
@@ -68,6 +75,11 @@ def check() -> int:
                     continue
 
                 if nocov_end_re.search(line):
+                    # Check: end must be on its own line
+                    if not nocov_block_own_line_re.match(line):
+                        violations.append(
+                            f"  {rs_file}:{lineno}: // nocov end must be on its own line"
+                        )
                     # Check: single-line block where the line could take inline // nocov.
                     # Lines ending with { or that are continuations of multi-line
                     # expressions can't take inline comments (cargo fmt moves them).
