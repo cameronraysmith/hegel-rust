@@ -30,7 +30,5 @@ fn test_durations_in_vec() {
 
 #[test]
 fn test_duration_default_generator() {
-    assert_all_examples(generators::default::<Duration>(), |d| {
-        *d >= Duration::ZERO
-    });
+    assert_all_examples(generators::default::<Duration>(), |d| *d >= Duration::ZERO);
 }
