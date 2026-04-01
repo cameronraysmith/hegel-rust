@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: "Create a pull request for the current branch. Use this whenever you need to open a PR, push changes for review, or the user asks you to create a pull request. Handles rebasing, RELEASE.md, draft creation, CI watching, and copilot review."
+description: "Create a pull request for the current branch. Use this whenever you need to open a PR, push changes for review, or the user asks you to create a pull request. Handles rebasing, RELEASE.md, draft creation, and CI watching."
 ---
 
 # Create Pull Request
@@ -31,7 +31,6 @@ EOF
 - **Title**: short, clear, under 70 characters.
 - **Body**: one or two short paragraphs explaining what changed and why. First person, casual tone matching the project's existing PR style. Describe user impact, not implementation details.
 - Do not include AI attribution, checklists, test plans, or TODO sections.
-- Request a copilot review: `gh pr edit <number> --add-reviewer copilot`
 
 ## Watch CI and address feedback
 
@@ -40,8 +39,4 @@ Loop up to three times:
 1. Watch CI: `gh pr checks <number> --repo <owner>/<repo> --watch --fail-fast`
    - Note: checks may take a few seconds to register after push. If `--watch` reports "no checks", retry once.
 2. If the build fails, read the failure logs, fix, push, and repeat from step 1.
-3. For copilot review comments: either fix the issue or resolve the thread if copilot is wrong. Use the GraphQL `resolveReviewThread` mutation to resolve threads.
-   - Copilot is fallible. Verify factual claims ("X is deprecated", "Y will fail lint") against actual docs or by running the relevant tool. Don't accept claims at face value.
-4. If you made changes, push and repeat from step 1.
-
-After the final green build, wait up to 30 seconds to see if copilot posts any new review comments, then address those if present.
+3. If you made changes, push and repeat from step 1.

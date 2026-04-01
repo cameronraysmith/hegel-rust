@@ -47,23 +47,3 @@ fn archive_name_for(arch: &str, os: &str) -> Result<String, String> {
 }
 ```
 
-## Command fallback chains
-
-Take the command list as a parameter so tests can exercise the fallback without manipulating PATH:
-
-```rust
-fn compute_sha256(path: &Path) -> String {
-    compute_sha256_with(path, &["sha256sum", "shasum -a 256"])
-}
-
-fn compute_sha256_with(path: &Path, commands: &[&str]) -> String {
-    // try each command in order...
-}
-```
-
-Test with: `compute_sha256_with(&file, &["nonexistent_tool", "sha256sum"])`
-
-## Error paths in shell-outs
-
-- Restructure so the error message is on the same line as the call (for line-level coverage).
-- Convert defensive error returns to panics when the function has only one caller that would panic anyway.

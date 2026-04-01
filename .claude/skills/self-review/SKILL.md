@@ -12,9 +12,7 @@ Run through these checks before creating a PR or declaring work complete. The go
 Run all of these — they're fast and catch the most common issues:
 
 ```bash
-cargo fmt --check        # formatting
-cargo clippy --all-features --tests -- -D warnings  # lint
-cargo test --all-features  # tests pass
+just check   # formatting, lint, tests, docs
 ```
 
 Fix any failures before proceeding. Don't skip checks because they passed locally last time — the code may have changed.

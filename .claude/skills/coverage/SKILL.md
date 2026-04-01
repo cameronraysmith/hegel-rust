@@ -20,7 +20,6 @@ Tests should catch real bugs, not mirror the implementation.
 - **Validate against external reality**: if your code maps to external identifiers (URLs, file names, API paths), hardcode the real external data in the test and validate against it. Don't just assert that each match arm produces a specific string — that's duplicating the code.
 - **Test behavior, not structure**: a test that would still pass after introducing a bug is not testing anything.
 - **Avoid network in unit tests**: use `file://` URLs with curl, create local tar.gz fixtures, use `tempfile::tempdir()` for isolation. Keep exactly one integration test that verifies the real network path works end-to-end.
-- **Shell out to system tools** (sha256sum, tar) rather than reimplementing them. Makes the code simpler and the tests more realistic.
 
 ## Diagnosing coverage failures
 
