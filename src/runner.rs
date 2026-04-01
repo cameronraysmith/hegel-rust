@@ -67,6 +67,9 @@ impl HegelSession {
         let connection = Connection::new(Box::new(child_stdout), Box::new(child_stdin));
         let mut control = connection.control_channel();
 
+        // Derive the binary path before the handshake so it's available for error messages.
+        let binary_path = std::env::var(HEGEL_SERVER_COMMAND_ENV).ok();
+
         // Handshake
         let handshake_result = control
             .send_request(HANDSHAKE_STRING.to_vec())
@@ -74,11 +77,7 @@ impl HegelSession {
 
         let response = match handshake_result {
             Ok(r) => r,
-            Err(e) => {
-                // nocov
-                let binary_path = std::env::var(HEGEL_SERVER_COMMAND_ENV).ok();
-                handle_handshake_failure(&mut child, binary_path.as_deref(), e)
-            }
+            Err(e) => handle_handshake_failure(&mut child, binary_path.as_deref(), e), // nocov
         };
 
         let decoded = String::from_utf8_lossy(&response);
