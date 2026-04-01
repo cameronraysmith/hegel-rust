@@ -56,6 +56,8 @@ fn archive_name_for(arch: &str, os: &str) -> Result<String, String> {
     let triple = match (arch, os) {
         ("aarch64", "macos") => "aarch64-apple-darwin",
         ("x86_64", "macos") => "x86_64-apple-darwin",
+        // musl builds are statically linked, so they work on any Linux
+        // regardless of glibc version (including Alpine and older distros).
         ("aarch64", "linux") => "aarch64-unknown-linux-musl",
         ("x86_64", "linux") => "x86_64-unknown-linux-musl",
         _ => {
