@@ -105,7 +105,7 @@ mod tests {
     /// Integration test: exercises the full install path using the embedded
     /// installer script. Requires network access to download uv from GitHub.
     #[test]
-    fn test_find_uv_installs_using_embedded_script() {
+    fn test_install_uv_to_uses_embedded_script() {
         let temp = tempfile::tempdir().unwrap();
         let cache = temp.path().join("hegel");
         let cached_uv = cache.join("uv");

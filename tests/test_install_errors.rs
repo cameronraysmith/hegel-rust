@@ -4,17 +4,18 @@ use common::project::TempRustProject;
 
 #[test]
 fn test_missing_uv_error_message() {
-    // When uv is not on PATH, not cached, and curl is also missing,
+    // When uv is not on PATH, not cached, and curl/wget are also missing,
     // the user should get a helpful error about installing uv manually.
     let code = r#"
 fn main() {
-    // Filter uv and curl out of PATH so download can't proceed
+    // Filter uv, curl, and wget out of PATH so download can't proceed
     let path = std::env::var("PATH").unwrap_or_default();
     let filtered: String = path
         .split(':')
         .filter(|dir| {
             !std::path::Path::new(&format!("{dir}/uv")).exists()
             && !std::path::Path::new(&format!("{dir}/curl")).exists()
+            && !std::path::Path::new(&format!("{dir}/wget")).exists()
         })
         .collect::<Vec<_>>()
         .join(":");
