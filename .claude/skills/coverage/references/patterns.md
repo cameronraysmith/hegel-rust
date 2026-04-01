@@ -178,10 +178,11 @@ Error paths that are hard to trigger.
 **Fix**: Design for testability.
 
 ```rust
-// Bad: Can't test the error branch without IO errors — parsing is entangled with IO
+// Bad: Can't test parsing logic without triggering IO
 fn read_and_parse(path: &Path) -> Result<Data> {
     let content = std::fs::read_to_string(path)?;
-    // ... parsing code inlined here, can't be tested without triggering IO
+    let value = content.trim().parse::<u64>()?;
+    Ok(Data { value })
 }
 
 // Good: Separate IO from parsing
