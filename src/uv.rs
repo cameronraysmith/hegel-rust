@@ -112,10 +112,13 @@ fn download_url_to_cache(url: &str, archive_name: &str, cache: &Path) -> Result<
         .args(["--strip-components", "1", "-C"])
         .arg(&temp_dir)
         .output()
-        .map_err(|e| format!("Failed to extract uv archive: {e}"))?;
+        .map_err(|e| format!("Failed to extract uv archive: {e}. Install uv manually: https://docs.astral.sh/uv/getting-started/installation/"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to extract uv archive: {stderr}"));
+        return Err(format!(
+            "Failed to extract uv archive: {stderr}\n\
+             Install uv manually: https://docs.astral.sh/uv/getting-started/installation/"
+        ));
     }
 
     let extracted_uv = temp_dir.join("uv");
@@ -186,7 +189,10 @@ mod tests {
     fn test_all_release_archives_are_covered() {
         let supported: Vec<String> = ARCHES
             .iter()
-            .flat_map(|arch| OSES.iter().map(move |os| archive_name_for(arch, os).unwrap()))
+            .flat_map(|arch| {
+                OSES.iter()
+                    .map(move |os| archive_name_for(arch, os).unwrap())
+            })
             .collect();
 
         let uncovered: Vec<&&str> = UV_RELEASE_ARCHIVES
@@ -316,12 +322,8 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let cache = temp.path().join("hegel");
 
-        let err = download_url_to_cache(
-            "https://github.com/astral-sh/uv/releases/download/nonexistent/fake.tar.gz",
-            "fake.tar.gz",
-            &cache,
-        )
-        .unwrap_err();
+        let err = download_url_to_cache("file:///nonexistent/fake.tar.gz", "fake.tar.gz", &cache)
+            .unwrap_err();
         assert!(err.contains("Failed to download uv"));
     }
 
@@ -329,14 +331,13 @@ mod tests {
     fn test_download_invalid_archive() {
         let temp = tempfile::tempdir().unwrap();
         let cache = temp.path().join("hegel");
-        std::fs::create_dir_all(&cache).unwrap();
 
-        // Create a fake "archive" that curl would have "downloaded"
-        // We'll test tar extraction failure by calling download_url_to_cache
-        // with a URL that returns non-tar data
-        // Use a URL that returns HTML (not a tar.gz)
-        let err = download_url_to_cache("https://example.com", "not-a-real-archive.tar.gz", &cache);
-        // curl with -f flag will fail on non-200 or we get a tar extraction error
-        assert!(err.is_err());
+        // Create a fake non-tar file and serve it via file:// URL
+        let fake_archive = temp.path().join("not-a-tar.tar.gz");
+        std::fs::write(&fake_archive, "this is not a tar archive").unwrap();
+        let url = format!("file://{}", fake_archive.display());
+
+        let err = download_url_to_cache(&url, "not-a-tar.tar.gz", &cache).unwrap_err();
+        assert!(err.contains("Failed to extract uv archive"));
     }
 }

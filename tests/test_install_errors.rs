@@ -26,11 +26,11 @@ fn main() {
 }
 "#;
 
+    let cache_dir = tempfile::tempdir().unwrap();
     TempRustProject::new()
         .main_file(code)
         .env_remove("HEGEL_SERVER_COMMAND")
-        // Point XDG_CACHE_HOME to a temp dir so no cached uv is found
-        .env("XDG_CACHE_HOME", "/tmp/hegel-test-no-cache")
+        .env("XDG_CACHE_HOME", cache_dir.path().to_str().unwrap())
         .expect_failure("Install uv manually")
         .cargo_run(&[]);
 }
@@ -60,12 +60,10 @@ fn main() {
 }
 "#;
 
+    let cache_dir = tempfile::tempdir().unwrap();
     TempRustProject::new()
         .main_file(code)
         .env_remove("HEGEL_SERVER_COMMAND")
-        .env("XDG_CACHE_HOME", "/tmp/hegel-test-uv-download")
+        .env("XDG_CACHE_HOME", cache_dir.path().to_str().unwrap())
         .cargo_run(&[]);
-
-    // Clean up the downloaded uv
-    let _ = std::fs::remove_dir_all("/tmp/hegel-test-uv-download");
 }
