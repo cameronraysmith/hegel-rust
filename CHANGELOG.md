@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.5 - 2026-04-07
+
+This release adds more configuration parameters to `generators::text()`:
+
+```rust
+gs::text().codec("ascii");
+gs::text().alphabet("abc");
+gs::text().min_codepoint(0x20).max_codepoint(0x7E);
+gs::text().categories(&["L", "Nd"]);
+gs::text().exclude_categories(&["Cc"]);
+gs::text().include_characters("@#$");
+gs::text().exclude_characters("\n\t");
+```
+
+As well as a new `characters()` generator:
+
+```rust
+let c: char = tc.draw(gs::characters());
+let c: char = tc.draw(gs::characters().codec("ascii"));
+```
+
 ## 0.4.4 - 2026-04-07
 
 This patch improves our output for failing test cases. We now print drawn values using variable names from the test function, instead of numbered `Draw` labels:
