@@ -139,7 +139,7 @@ impl VisitMut for DrawNameCollector {
     }
 }
 
-/// Pass 2: Rewrite `let x = tc.draw(gen)` to `let x = tc.draw_named(gen, "x", repeatable)`.
+/// Pass 2: Rewrite `let x = tc.draw(gen)` to `let x = tc.__draw_named(gen, "x", repeatable)`.
 ///
 /// Uses the pre-computed name_flags from DrawNameCollector so that every use of
 /// a given name gets the same repeatable flag.
@@ -168,7 +168,7 @@ impl VisitMut for DrawRewriter {
         };
 
         let span = method_call.method.span();
-        method_call.method = Ident::new("draw_named", span);
+        method_call.method = Ident::new("__draw_named", span);
         method_call.args.push(Expr::Lit(syn::ExprLit {
             attrs: vec![],
             lit: syn::Lit::Str(syn::LitStr::new(&var_name, span)),
@@ -231,7 +231,7 @@ pub fn expand_test(attr: proc_macro2::TokenStream, item: proc_macro2::TokenStrea
         }
     }
 
-    // Rewrite `let x = tc.draw(gen)` -> `let x = tc.draw_named(gen, "x", repeatable)`
+    // Rewrite `let x = tc.draw(gen)` -> `let x = tc.__draw_named(gen, "x", repeatable)`
     //
     // Two-pass approach:
     //   1. Collect all draw variable names and determine per-name repeatable flags.

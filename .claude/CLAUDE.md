@@ -9,14 +9,14 @@ This is the Rust library for Hegel, a universal property-based testing framework
 ## Build & Test Commands
 
 ```bash
-just check                          # Full CI: check-format + lint + check-test + check-docs
-just test                           # cargo test --all-features
-just lint                           # cargo clippy --all-features --tests -- -D warnings
-just format                         # cargo fmt
-just docs                           # cargo doc --open --all-features --no-deps
-just check-conformance              # pytest conformance tests (requires Python environment)
-just check-coverage                 # cargo llvm-cov --fail-under-lines 30 (requires cargo-llvm-cov + llvm-tools-preview)
-cargo test test_name                # Run single test
+just check                          # run full CI checks
+just test                           # run tests
+just lint                           # run clipy
+just format                         # format
+just docs                           # build and open docs
+just check-conformance              # run python conformance tests
+just check-coverage                 # check coverage (requires cargo-llvm-cov + llvm-tools-preview)
+cargo test test_name                # run a single test
 ```
 
 MSRV is 1.86 (enforced in CI and Cargo.toml). If you bump it, also bump `ci.yml` and `hegel-derive/Cargo.toml`.

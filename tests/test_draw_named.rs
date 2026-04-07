@@ -132,7 +132,7 @@ fn test_macro_closure_is_repeatable() {
 #[test]
 fn test_macro_non_assignment_draw_not_rewritten() {
     // draw calls not in `let x = tc.draw(...)` form stay as draw(),
-    // which delegates to draw_named("draw", true) — repeatable, so no panic.
+    // which delegates to __draw_named("draw", true) — repeatable, so no panic.
     let lines = draw_lines(
         "
         let _ = vec![
@@ -346,7 +346,7 @@ fn test_macro_bare_block_output_has_suffix() {
 // ============================================================
 // Known limitations of syntactic rewriting
 //
-// The macro rewrites `let x = tc.draw(gen)` -> `tc.draw_named(gen, "x", ...)`
+// The macro rewrites `let x = tc.draw(gen)` -> `tc.__draw_named(gen, "x", ...)`
 // by matching syntax, not semantics. The tests below document cases where
 // the macro cannot determine the variable name and falls back to the
 // generic "draw_N" output. These are accepted limitations, not bugs.
@@ -355,7 +355,7 @@ fn test_macro_bare_block_output_has_suffix() {
 #[test]
 fn test_limitation_aliased_tc_not_rewritten() {
     // The macro only matches `tc.draw(...)`, not draws on an alias like `t`.
-    // The draw on `t` stays as draw() -> draw_named("draw", true).
+    // The draw on `t` stays as draw() -> __draw_named("draw", true).
     let lines = draw_lines(
         "
         let t = tc.clone();
@@ -425,13 +425,13 @@ fn test_draw_named_mixed_repeatable_panics() {
     expect_panic(
         || {
             hegel::Hegel::new(|tc: hegel::TestCase| {
-                tc.draw_named(gs::booleans(), "x", false);
-                tc.draw_named(gs::booleans(), "x", true);
+                tc.__draw_named(gs::booleans(), "x", false);
+                tc.__draw_named(gs::booleans(), "x", true);
             })
             .settings(hegel::Settings::new().test_cases(1))
             .run();
         },
-        r#"draw_named.*inconsistent.*repeatable"#,
+        r#"__draw_named.*inconsistent.*repeatable"#,
     );
 }
 
@@ -440,12 +440,39 @@ fn test_draw_named_mixed_repeatable_reverse_panics() {
     expect_panic(
         || {
             hegel::Hegel::new(|tc: hegel::TestCase| {
-                tc.draw_named(gs::booleans(), "x", true);
-                tc.draw_named(gs::booleans(), "x", false);
+                tc.__draw_named(gs::booleans(), "x", true);
+                tc.__draw_named(gs::booleans(), "x", false);
             })
             .settings(hegel::Settings::new().test_cases(1))
             .run();
         },
-        r#"draw_named.*inconsistent.*repeatable"#,
+        r#"__draw_named.*inconsistent.*repeatable"#,
     );
+}
+
+// Covering tests. This logic is already covered by our TempRustProject tests, but those
+// don't contribute to coverage.
+#[test]
+fn test_draw_named_non_repeatable_reuse_panics() {
+    expect_panic(
+        || {
+            hegel::Hegel::new(|tc: hegel::TestCase| {
+                tc.__draw_named(gs::booleans(), "x", false);
+                tc.__draw_named(gs::booleans(), "x", false);
+            })
+            .settings(hegel::Settings::new().test_cases(1))
+            .run();
+        },
+        r#"__draw_named.*"x".*more than once"#,
+    );
+}
+
+#[test]
+fn test_draw_named_repeatable_skips_taken_name() {
+    hegel::Hegel::new(|tc: hegel::TestCase| {
+        tc.__draw_named(gs::booleans(), "x_1", false);
+        tc.__draw_named(gs::booleans(), "x", true);
+    })
+    .settings(hegel::Settings::new().test_cases(1))
+    .run();
 }
