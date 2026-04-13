@@ -350,7 +350,6 @@ pub fn deserialize_value<T: serde::de::DeserializeOwned>(raw: Value) -> T {
 /// [`more()`](Collection::more).
 pub struct Collection<'a> {
     tc: &'a TestCase,
-    base_name: String,
     min_size: usize,
     max_size: Option<usize>,
     handle: Option<String>,
@@ -359,10 +358,9 @@ pub struct Collection<'a> {
 
 impl<'a> Collection<'a> {
     /// Create a new backend-managed collection.
-    pub fn new(tc: &'a TestCase, name: &str, min_size: usize, max_size: Option<usize>) -> Self {
+    pub fn new(tc: &'a TestCase, min_size: usize, max_size: Option<usize>) -> Self {
         Collection {
             tc,
-            base_name: name.to_string(),
             min_size,
             max_size,
             handle: None,
@@ -372,11 +370,11 @@ impl<'a> Collection<'a> {
 
     fn ensure_initialized(&mut self) -> &str {
         if self.handle.is_none() {
-            let name = match self.tc.data_source().new_collection(
-                Some(&self.base_name),
-                self.min_size as u64,
-                self.max_size.map(|m| m as u64),
-            ) {
+            let name = match self
+                .tc
+                .data_source()
+                .new_collection(self.min_size as u64, self.max_size.map(|m| m as u64))
+            {
                 Ok(name) => name,
                 Err(e) => panic_on_data_source_error(e), // nocov
             };

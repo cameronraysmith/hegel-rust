@@ -43,7 +43,6 @@ pub trait DataSource {
     /// Create a new collection. Returns an opaque handle.
     fn new_collection(
         &self,
-        name: Option<&str>,
         min_size: u64,
         max_size: Option<u64>,
     ) -> Result<String, DataSourceError>;

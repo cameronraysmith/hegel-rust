@@ -144,16 +144,12 @@ impl DataSource for ServerBackend {
 
     fn new_collection(
         &self,
-        name: Option<&str>,
         min_size: u64,
         max_size: Option<u64>,
     ) -> Result<String, DataSourceError> {
         let mut payload = cbor_map! {
             "min_size" => min_size
         };
-        if let Some(n) = name {
-            map_insert(&mut payload, "name", n);
-        }
         if let Some(max) = max_size {
             map_insert(&mut payload, "max_size", max);
         }
