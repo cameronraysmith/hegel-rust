@@ -22,7 +22,10 @@ fn test_is_in_ci_some_expected_variant() {
             std::env::set_var("CI", val);
         }
     }
-    assert!(result, "TF_BUILD=true should be detected as a CI environment");
+    assert!(
+        result,
+        "TF_BUILD=true should be detected as a CI environment"
+    );
 }
 
 #[test]
