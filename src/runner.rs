@@ -25,7 +25,7 @@ static SESSION: std::sync::OnceLock<HegelSession> = std::sync::OnceLock::new();
 
 static PANIC_HOOK_INIT: Once = Once::new();
 
-// ─── ServerBackend ──────────────────────────────────────────────────────────
+// ─── ServerDataSource ──────────────────────────────────────────────────────────
 
 static PROTOCOL_DEBUG: LazyLock<bool> = LazyLock::new(|| {
     matches!(
@@ -39,16 +39,16 @@ static PROTOCOL_DEBUG: LazyLock<bool> = LazyLock::new(|| {
 
 /// Backend implementation that communicates with the hegel-core server
 /// over a multiplexed stream.
-pub(crate) struct ServerBackend {
+pub(crate) struct ServerDataSource {
     connection: Arc<Connection>,
     stream: RefCell<Stream>,
     aborted: Cell<bool>,
     verbosity: Verbosity,
 }
 
-impl ServerBackend {
+impl ServerDataSource {
     pub(crate) fn new(connection: Arc<Connection>, stream: Stream, verbosity: Verbosity) -> Self {
-        ServerBackend {
+        ServerDataSource {
             connection,
             stream: RefCell::new(stream),
             aborted: Cell::new(false),
@@ -125,7 +125,7 @@ impl ServerBackend {
     }
 }
 
-impl DataSource for ServerBackend {
+impl DataSource for ServerDataSource {
     fn generate(&self, schema: &Value) -> Result<Value, DataSourceError> {
         self.send_request("generate", &cbor_map! {"schema" => schema.clone()})
     }
@@ -462,7 +462,7 @@ impl TestRunner for ServerTestRunner {
                         .write_reply(event_id, cbor_encode(&ack_null))
                         .expect("Failed to ack test_case");
 
-                    let backend = Box::new(ServerBackend::new(
+                    let backend = Box::new(ServerDataSource::new(
                         Arc::clone(connection),
                         test_case_stream,
                         verbosity,
@@ -527,7 +527,7 @@ impl TestRunner for ServerTestRunner {
                 .write_reply(event_id, cbor_encode(&ack_null))
                 .expect("Failed to ack final test_case");
 
-            let backend = Box::new(ServerBackend::new(
+            let backend = Box::new(ServerDataSource::new(
                 Arc::clone(connection),
                 test_case_stream,
                 verbosity,
